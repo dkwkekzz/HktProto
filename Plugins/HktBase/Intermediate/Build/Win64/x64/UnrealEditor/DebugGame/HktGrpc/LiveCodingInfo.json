@@ -1,9 +1,0 @@
-{
-	"RemapUnityFiles": 
-	{
-		"Module.HktGrpc.cpp.obj": [
-			"PerModuleInline.gen.cpp.obj",
-			"HktGrpc.cpp.obj"
-		]
-	}
-}

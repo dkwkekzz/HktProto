@@ -44,3 +44,8 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Plugins
+/Plugins/**/Binaries/
+/Plugins/**/Intermediate/
+/Plugins/**/DerivedDataCache/
