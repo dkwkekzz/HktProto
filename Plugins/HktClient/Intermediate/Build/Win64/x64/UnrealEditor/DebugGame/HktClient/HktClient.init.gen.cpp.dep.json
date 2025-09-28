@@ -1,0 +1,13 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\ws\\dev\\ue5\\hktproto\\plugins\\hktclient\\intermediate\\build\\win64\\unrealeditor\\inc\\hktclient\\uht\\hktclient.init.gen.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\ws\\dev\\unrealengine\\engine\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\unrealed\\sharedpch.unrealed.project.nonoptimized.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "c:\\ws\\dev\\ue5\\hktproto\\plugins\\hktclient\\intermediate\\build\\win64\\x64\\unrealeditor\\debuggame\\hktclient\\definitions.hktclient.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

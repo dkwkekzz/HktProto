@@ -1,0 +1,10 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.HktBase.cpp.obj": [
+			"PerModuleInline.gen.cpp.obj",
+			"HktBase.cpp.obj",
+			"HktClient.cpp.obj"
+		]
+	}
+}

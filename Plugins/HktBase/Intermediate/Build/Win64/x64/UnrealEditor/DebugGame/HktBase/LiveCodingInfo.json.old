@@ -1,0 +1,19 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.HktBase.cpp.obj": [
+			"PerModuleInline.gen.cpp.obj",
+			"HktAttribute.cpp.obj",
+			"HktBase.cpp.obj",
+			"HktBehavior.cpp.obj",
+			"HktBehaviorFactory.cpp.obj",
+			"HktDef.cpp.obj",
+			"HktEventBus.cpp.obj",
+			"HktGraph.cpp.obj",
+			"HktGrpc.cpp.obj",
+			"HktRpcProxy.cpp.obj",
+			"HktRpcService.cpp.obj",
+			"HktRpcTraits.cpp.obj"
+		]
+	}
+}

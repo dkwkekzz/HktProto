@@ -1,0 +1,17 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.HktClient.cpp.obj": [
+			"HktClient.init.gen.cpp.obj",
+			"HktClientCoreSubsystem.gen.cpp.obj",
+			"HktClientViewSubsystem.gen.cpp.obj",
+			"HktDataAsset.gen.cpp.obj",
+			"PerModuleInline.gen.cpp.obj",
+			"HktClient.cpp.obj",
+			"HktClientCoreSubsystem.cpp.obj",
+			"HktClientViewSubsystem.cpp.obj",
+			"HktDataAsset.cpp.obj",
+			"HktSubject.cpp.obj"
+		]
+	}
+}

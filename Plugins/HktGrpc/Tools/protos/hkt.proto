@@ -1,0 +1,109 @@
+// gRPC 통신 규약을 정의하는 Protobuf 파일입니다.
+syntax = "proto3";
+
+package hkt;
+
+// 3D 벡터
+message Vector3D {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// ===================================================================
+// 1. 계정 관련
+// ===================================================================
+
+message AccountRequest {
+  string user_id = 1;
+  string password = 2;
+}
+
+message AccountResponse {
+  bool success = 1;
+  string message = 2;
+  int64 player_id = 3; // 로그인 성공 시 플레이어 고유 ID
+}
+
+// ===================================================================
+// 2. 동기화 관련
+// ===================================================================
+
+message SyncRequest {
+  int64 player_id = 1;
+  int32 area_id = 2; // 동기화를 요청할 Area ID
+}
+
+// 스트림을 통해 전달될 동기화 데이터
+message SyncResponse {
+  BehaviorPacket behavior_packet = 1;
+}
+
+// ===================================================================
+// 3. Behavior 관련 패킷
+// ===================================================================
+
+message MovePacket {
+  Vector3D target_location = 1;
+  float speed = 2;
+}
+
+message JumpPacket {
+  float jump_velocity = 1;
+}
+
+message AttackPacket {
+  int32 skill_id = 1;
+  int64 target_id = 2; // 공격 대상 ID
+}
+
+// Behavior 제거를 브로드캐스팅하기 위한 패킷
+message DestroyPacket {
+  int64 behavior_id_to_destroy = 1;
+}
+
+// 모든 게임 로직(Behavior)을 담는 컨테이너
+message BehaviorPacket {
+  int64 instigator_id = 1; // 이 행동을 발생시킨 플레이어 ID
+  int64 behavior_id = 2;   // 이 행동의 고유 ID (생성 시에만 의미 있음)
+  
+  oneof packet_type {
+    MovePacket move_packet = 3;
+    JumpPacket jump_packet = 4;
+    AttackPacket attack_packet = 5;
+    DestroyPacket destroy_packet = 6; // 추가됨
+  }
+}
+
+// ===================================================================
+// 4. Behavior 생성/제거 요청
+// ===================================================================
+
+message CreateBehaviorRequest {
+  repeated BehaviorPacket packets = 1;
+}
+
+message CreateBehaviorResponse {
+  bool success = 1;
+  repeated BehaviorPacket created_packets = 2; 
+}
+
+message DestroyBehaviorRequest {
+  int64 instigator_id = 1;
+  int64 behavior_id = 2;
+}
+
+message DestroyBehaviorResponse {
+  bool success = 1;
+}
+
+// ===================================================================
+// 서비스 정의
+// ===================================================================
+service HktService {
+  rpc Login(AccountRequest) returns (AccountResponse);
+  rpc SyncArea(SyncRequest) returns (stream SyncResponse);
+  rpc CreateBehavior(CreateBehaviorRequest) returns (CreateBehaviorResponse);
+  rpc DestroyBehavior(DestroyBehaviorRequest) returns (DestroyBehaviorResponse);
+}
+
