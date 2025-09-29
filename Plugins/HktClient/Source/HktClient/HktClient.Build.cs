@@ -12,8 +12,7 @@ public class HktClient : ModuleRules
             new string[]
             {
                 "Core",
-                "HktBase",
-                "HktGrpc",
+                "HktBase"
             }
         );
 
