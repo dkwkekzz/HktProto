@@ -49,7 +49,3 @@ Thumbs.db
 /Plugins/**/Binaries/
 /Plugins/**/Intermediate/
 /Plugins/**/DerivedDataCache/
-
-# --- Custom Exceptions ---
-# Allow essential third-party binaries for gRPC, even if they are ignored globally.
-!/Plugins/HktBase/Source/ThirdParty/gRPC/bin/*
