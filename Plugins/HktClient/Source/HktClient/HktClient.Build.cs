@@ -12,6 +12,13 @@ public class HktClient : ModuleRules
             new string[]
             {
                 "Core",
+                "CoreUObject",
+                "Engine",
+                "InputCore",
+                "NavigationSystem",
+                "AIModule",
+                "Niagara",
+                "EnhancedInput",
                 "HktBase"
             }
         );
@@ -19,8 +26,6 @@ public class HktClient : ModuleRules
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
-                "CoreUObject",
-                "Engine",
                 "Slate",
                 "SlateCore",
             }

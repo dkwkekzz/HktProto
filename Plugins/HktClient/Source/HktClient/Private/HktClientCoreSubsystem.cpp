@@ -5,6 +5,19 @@
 #include "HktDef.h"
 #include "HktPacketTypes.h"
 
+UHktClientCoreSubsystem* UHktClientCoreSubsystem::Get(UWorld* InWorld)
+{
+    if (InWorld)
+    {
+        if (UGameInstance* GameInstance = InWorld->GetGameInstance())
+        {
+            return GameInstance->GetSubsystem<UHktClientCoreSubsystem>();
+        }
+    }
+
+    return nullptr;
+}
+
 void UHktClientCoreSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
@@ -19,22 +32,22 @@ void UHktClientCoreSubsystem::Deinitialize()
     Super::Deinitialize();
 }
 
-void UHktClientCoreSubsystem::SyncGroup(int64 SubjectId, int64 GroupId)
+void UHktClientCoreSubsystem::SyncGroup(int64 PlayerId, int64 GroupId)
 {
     if (RpcProxy)
     {
-        RpcProxy->SyncGroup(SubjectId, GroupId,
+        RpcProxy->SyncGroup(PlayerId, GroupId,
             [this](TUniquePtr<IHktBehavior> Response)
             {
                 if (Response->GetTypeId() == GetBehaviorTypeId<FDestroyPacket>())
                 {
-                    OnDestroyedBehavior.Broadcast(*Response);
+                    OnBehaviorDestroyed.Broadcast(*Response);
                     Graph->RemoveBehavior(Response->GetBehaviorId());
                 }
                 else
                 {
                     IHktBehavior& Behavior = Graph->AddBehavior(MoveTemp(Response));
-                    OnCreatedBehavior.Broadcast(Behavior);
+                    OnBehaviorCreated.Broadcast(Behavior);
                 }
             });
     }
