@@ -21,17 +21,11 @@ void UHktClientViewSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UHktClientViewSubsystem::Deinitialize()
 {
     // 서브시스템이 종료될 때, 관리하던 모든 뷰가 월드에 남아있지 않도록 정리합니다.
-    for (auto const& SubjectPair : LookupObjToView)
+    for (auto& View : AllViews)
     {
-        for (auto const& BehaviorPair : SubjectPair.Value)
+        if (IsValid(View))
         {
-            for (UHktViewHandle* Handle : BehaviorPair.Value)
-            {
-                if (IsValid(Handle))
-                {
-                    Handle->DestroyView();
-                }
-            }
+            View->DestroyView();
         }
     }
     LookupObjToView.Empty();
@@ -67,6 +61,7 @@ void UHktClientViewSubsystem::HandleBehaviorCreated(const IHktBehavior& InBehavi
     UHktViewHandle* NewHandle = DataAsset->CreateViewHandle(this, FTransform::Identity); // TODO: Transform을 Behavior에서 가져와야 할 수 있음
     if (NewHandle)
     {
+        AllViews.Add(NewHandle);
         // 룩업 맵들에 새 핸들을 등록합니다.
         LookupObjToView.FindOrAdd(SubjectId).FindOrAdd(BehaviorId).Add(NewHandle);
         LookupViewToObj.Add(NewHandle, MakeTuple(SubjectId, BehaviorId));
@@ -84,12 +79,12 @@ void UHktClientViewSubsystem::HandleBehaviorDestroyed(const IHktBehavior& InBeha
     const FHktId SubjectId = InBehavior.GetSubjectId();
     const FHktId BehaviorId = InBehavior.GetBehaviorId();
 
-    if (TMap<FHktId, TArray<TObjectPtr<UHktViewHandle>>>* BehaviorMap = LookupObjToView.Find(SubjectId))
+    if (TMap<FHktId, TArray<UHktViewHandle*>>* BehaviorMap = LookupObjToView.Find(SubjectId))
     {
-        if (TArray<TObjectPtr<UHktViewHandle>>* Handles = BehaviorMap->Find(BehaviorId))
+        if (TArray<UHktViewHandle*>* Handles = BehaviorMap->Find(BehaviorId))
         {
             // 배열을 복사하여 순회합니다. DestroyViewInternal이 원본 배열을 수정하기 때문입니다.
-            TArray<TObjectPtr<UHktViewHandle>> HandlesToDestroy = *Handles;
+            TArray<UHktViewHandle*> HandlesToDestroy = *Handles;
             for (UHktViewHandle* Handle : HandlesToDestroy)
             {
                 DestroyViewInternal(Handle);
@@ -104,7 +99,7 @@ void UHktClientViewSubsystem::HandleBehaviorDestroyed(const IHktBehavior& InBeha
 
 void UHktClientViewSubsystem::HandleSubjectDestroyed(FHktId SubjectId)
 {
-    if (TMap<FHktId, TArray<TObjectPtr<UHktViewHandle>>>* BehaviorMap = LookupObjToView.Find(SubjectId))
+    if (TMap<FHktId, TArray<UHktViewHandle*>>* BehaviorMap = LookupObjToView.Find(SubjectId))
     {
         // 모든 Behavior의 모든 핸들을 파괴해야 하므로, 전체를 순회합니다.
         TArray<UHktViewHandle*> AllHandlesToDestroy;
@@ -138,9 +133,9 @@ void UHktClientViewSubsystem::DestroyViewInternal(UHktViewHandle* ViewHandle)
         const FHktId BehaviorId = Ids->Get<1>();
 
         // 정방향 룩업 맵에서도 핸들을 제거합니다.
-        if (TMap<FHktId, TArray<TObjectPtr<UHktViewHandle>>>* BehaviorMap = LookupObjToView.Find(SubjectId))
+        if (TMap<FHktId, TArray<UHktViewHandle*>>* BehaviorMap = LookupObjToView.Find(SubjectId))
         {
-            if (TArray<TObjectPtr<UHktViewHandle>>* Handles = BehaviorMap->Find(BehaviorId))
+            if (TArray<UHktViewHandle*>* Handles = BehaviorMap->Find(BehaviorId))
             {
                 Handles->Remove(ViewHandle);
             }
@@ -149,7 +144,8 @@ void UHktClientViewSubsystem::DestroyViewInternal(UHktViewHandle* ViewHandle)
         LookupViewToObj.Remove(ViewHandle);
     }
 
+    AllViews.Remove(ViewHandle);
+
     // 핸들을 통해 실제 뷰 리소스를 파괴합니다.
     ViewHandle->DestroyView();
 }
-

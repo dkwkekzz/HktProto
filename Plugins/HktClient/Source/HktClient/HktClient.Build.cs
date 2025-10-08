@@ -19,7 +19,9 @@ public class HktClient : ModuleRules
                 "AIModule",
                 "Niagara",
                 "EnhancedInput",
-                "HktBase"
+                "UMG",
+                "HktBase",
+                "HktCustomNet"
             }
         );
 

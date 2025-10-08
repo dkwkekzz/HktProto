@@ -1,4 +1,4 @@
-#include "HktClient.h"
+#include "HktClientModule.h"
 
 #define LOCTEXT_NAMESPACE "FHktClientModule"
 

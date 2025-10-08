@@ -30,19 +30,21 @@ private:
     /** 내부적으로 뷰를 파괴하고 룩업 맵에서 제거하는 헬퍼 함수입니다. */
     void DestroyViewInternal(UHktViewHandle* ViewHandle);
 
+    UPROPERTY()
+    TSet<TObjectPtr<UHktViewHandle>> AllViews;
+
     /**
      * Subject ID -> Behavior ID -> View Handles 배열로의 룩업 맵입니다.
      * 특정 Subject나 Behavior에 속한 모든 뷰를 빠르게 찾기 위해 사용됩니다.
      */
-    UPROPERTY()
-    TMap<FHktId, TMap<FHktId, TArray<TObjectPtr<UHktViewHandle>>>> LookupObjToView;
+    TMap<int64, TMap<int64, TArray<UHktViewHandle*>>> LookupObjToView;
 
     /**
      * View Handle -> {Subject ID, Behavior ID} 로의 역방향 룩업 맵입니다.
      * 특정 뷰가 어떤 객체에 속해있는지 찾거나, 개별 뷰 파괴 시 ObjToView 맵을 정리하기 위해 사용됩니다.
      * 키는 TWeakObjectPtr를 사용하여, 핸들이 다른 곳에서 파괴되었을 때 맵이 유효하지 않은 포인터를 들고 있지 않도록 합니다.
      */
-    UPROPERTY()
-    TMap<TWeakObjectPtr<UHktViewHandle>, TTuple<FHktId, FHktId>> LookupViewToObj;
+    TMap<UHktViewHandle*, TTuple<int64, int64>> LookupViewToObj;
+
 };
 

@@ -1,9 +1,6 @@
 #include "HktClientCoreSubsystem.h"
-#include "HktRpcProxy.h"
-#include "HktRpcTraits.h"
 #include "HktGraph.h"
-#include "HktDef.h"
-#include "HktPacketTypes.h"
+#include "HktReliableUdpClient.h"
 
 UHktClientCoreSubsystem* UHktClientCoreSubsystem::Get(UWorld* InWorld)
 {
@@ -21,43 +18,74 @@ UHktClientCoreSubsystem* UHktClientCoreSubsystem::Get(UWorld* InWorld)
 void UHktClientCoreSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
-    RpcProxy = MakeShared<FHktRpcProxy>(TEXT("127.0.0.1:50051"));
+    NetClient = MakeShared<FHktReliableUdpClient>();
     Graph = MakeShared<FHktGraph>();
 }
 
 void UHktClientCoreSubsystem::Deinitialize()
 {
-    RpcProxy.Reset();
+    NetClient.Reset();
     Graph.Reset();
     Super::Deinitialize();
 }
 
-void UHktClientCoreSubsystem::SyncGroup(int64 PlayerId, int64 GroupId)
+void UHktClientCoreSubsystem::Tick(float DeltaTime)
 {
-    if (RpcProxy)
+    if (NetClient)
     {
-        RpcProxy->SyncGroup(PlayerId, GroupId,
-            [this](TUniquePtr<IHktBehavior> Response)
+        NetClient->Tick();
+
+		TArray<uint8> Bytes;
+        while (NetClient->Poll(Bytes))
+        {
+            FHktBehaviorResponseHeader ResponseHeader;
+            if (auto NewBehavior = FHktBehaviorFactory::CreateBehavior(ResponseHeader))
             {
-                if (Response->GetTypeId() == GetBehaviorTypeId<FDestroyPacket>())
+                const auto& BehaviorRef = Graph->AddBehavior(MoveTemp(NewBehavior));
+                OnBehaviorCreated.Broadcast(BehaviorRef);
+            }
+            else
+            {
+                if (const auto* BehaviorPtr = Graph->FindBehavior(ResponseHeader.BehaviorInstanceId))
                 {
-                    OnBehaviorDestroyed.Broadcast(*Response);
-                    Graph->RemoveBehavior(Response->GetBehaviorId());
+					OnBehaviorDestroyed.Broadcast(*BehaviorPtr);
+                    Graph->RemoveBehavior(*BehaviorPtr);
                 }
-                else
-                {
-                    IHktBehavior& Behavior = Graph->AddBehavior(MoveTemp(Response));
-                    OnBehaviorCreated.Broadcast(Behavior);
-                }
-            });
+            }
+        }
+	}
+}
+
+bool UHktClientCoreSubsystem::IsTickable() const
+{
+    if (NetClient)
+    {
+        return NetClient->IsConnected();
+    }
+
+    return false;
+}
+
+void UHktClientCoreSubsystem::Connect()
+{
+    if (NetClient)
+    {
+        NetClient->Connect(TEXT("127.0.0.1"), HktReliableUdp::ServerPort);
     }
 }
 
-void UHktClientCoreSubsystem::ExecuteBehavior(int64 SubjectId, int32 BehaviorTypeId, const TArray<uint8>& Bytes)
+void UHktClientCoreSubsystem::Disconnect()
 {
-    if (RpcProxy)
+    if (NetClient)
     {
-		constexpr int64 GroupId = 0; // 클라이언트에서 그룹 ID를 관리하는 로직이 필요할 수 있습니다.
-        RpcProxy->ExecuteBehavior(GroupId, SubjectId, BehaviorTypeId, Bytes);
+        NetClient->Disconnect();
+    }
+}
+
+void UHktClientCoreSubsystem::SendBytes(const TArray<uint8>& Bytes)
+{
+    if (NetClient)
+    {
+        NetClient->Send(Bytes);
     }
 }
