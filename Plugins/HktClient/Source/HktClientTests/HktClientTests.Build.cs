@@ -12,13 +12,15 @@ public class HktClientTests : ModuleRules
             new string[]
             {
                 "Core",
+                "CoreUObject",
+                "Engine",
+                "HktClient",
             }
         );
 
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
-                "HktCustomNet",
             }
         );
     }

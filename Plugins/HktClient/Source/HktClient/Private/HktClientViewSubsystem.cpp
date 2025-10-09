@@ -46,10 +46,17 @@ void UHktClientViewSubsystem::HandleBehaviorCreated(const IHktBehavior& InBehavi
 {
     const FHktId SubjectId = InBehavior.GetSubjectId();
     const FHktId BehaviorId = InBehavior.GetBehaviorId();
-    const FPrimaryAssetId AssetId = InBehavior.GetViewAssetId();
+    const FName AssetName = InBehavior.GetAssetName();
+
+    if (AssetName.IsNone())
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("HandleBehaviorCreated: Behavior %llu has no associated AssetName."), BehaviorId);
+		return;
+    }
 
     UAssetManager& AssetManager = UAssetManager::Get();
 
+    const FPrimaryAssetId AssetId(FPrimaryAssetType("HktDataAsset"), AssetName);
     UHktDataAsset* DataAsset = Cast<UHktDataAsset>(AssetManager.GetPrimaryAssetObject(AssetId));
     if (!DataAsset)
     {

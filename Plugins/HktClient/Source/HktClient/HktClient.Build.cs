@@ -30,6 +30,7 @@ public class HktClient : ModuleRules
             {
                 "Slate",
                 "SlateCore",
+                "HktCustomNet"
             }
         );
 

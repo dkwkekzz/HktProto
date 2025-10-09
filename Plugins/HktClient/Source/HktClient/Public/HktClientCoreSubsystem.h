@@ -30,7 +30,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override;
 	virtual ETickableTickType GetTickableTickType() const override { return (HasAnyFlags(RF_ClassDefaultObject) ? ETickableTickType::Never : ETickableTickType::Conditional); }
-	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UTargetingSubsystem, STATGROUP_Tickables); }
+	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UHktClientCoreSubsystem, STATGROUP_Tickables); }
 	virtual UWorld* GetTickableGameObjectWorld() const override { return GetWorld(); }
 	// ~FTickableGameObject interface
 
@@ -38,11 +38,19 @@ public:
 	void Disconnect();
 
     template<typename TFlagment>
-    FORCEINLINE void SendFlagment(const TFlagment& InFlagment)
+    FORCEINLINE void CreateBehavior(const TFlagment& InFlagment)
     {
-        const FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
+        FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
         SendBytes(FHktStructSerializer::SerializeStructToBytes(Header));
     }
+
+    template<typename TFlagment>
+    FORCEINLINE void DestroyBehavior()
+    {
+        FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
+        SendBytes(FHktStructSerializer::SerializeStructToBytes(Header));
+    }
+
     void SendBytes(const TArray<uint8>& Bytes);
 
     FOnBehaviorCreated OnBehaviorCreated;
