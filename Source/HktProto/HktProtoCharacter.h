@@ -4,7 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "GameplayTagContainer.h"
 #include "HktProtoCharacter.generated.h"
+
+class UHktStateTreeComponent;
 
 UCLASS(Blueprintable)
 class AHktProtoCharacter : public ACharacter
@@ -14,7 +17,7 @@ class AHktProtoCharacter : public ACharacter
 public:
 	AHktProtoCharacter();
 
-	// Called every frame.
+	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** Returns TopDownCameraComponent subobject **/
@@ -23,6 +26,10 @@ public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
 private:
+	/** On State Tag Changed */
+	UFUNCTION()
+	void OnStateTagChanged(FGameplayTag Tag, bool bIsAdded);
+
 	/** Top down camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* TopDownCameraComponent;
@@ -30,5 +37,9 @@ private:
 	/** Camera boom positioning the camera above the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class USpringArmComponent* CameraBoom;
+
+	/** State Tree Component */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HktProto", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UHktStateTreeComponent> StateTreeComponent;
 };
 

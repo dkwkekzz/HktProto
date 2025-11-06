@@ -40,15 +40,15 @@ public:
     template<typename TFlagment>
     FORCEINLINE void CreateBehavior(const TFlagment& InFlagment)
     {
-        FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
-        SendBytes(FHktStructSerializer::SerializeStructToBytes(Header));
+        //FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
+        //SendBytes(FHktStructSerializer::SerializeStructToBytes(Header));
     }
 
     template<typename TFlagment>
     FORCEINLINE void DestroyBehavior()
     {
-        FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
-        SendBytes(FHktStructSerializer::SerializeStructToBytes(Header));
+        //FHktBehaviorRequestHeader Header = FHktBehaviorFactory::CreateBehaviorRequest<TFlagment>(MySubjectId, DefaultSyncGroupId, InFlagment);
+        //SendBytes(FHktStructSerializer::SerializeStructToBytes(Header));
     }
 
     void SendBytes(const TArray<uint8>& Bytes);

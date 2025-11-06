@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HktProtoGameMode.h"
-#include "HktProtoPlayerController.h"
 #include "HktProtoCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 
 AHktProtoGameMode::AHktProtoGameMode()
 {
 	// use our custom PlayerController class
-	PlayerControllerClass = AHktProtoPlayerController::StaticClass();
-
 	// set default pawn class to our Blueprinted character
 	static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/TopDown/Blueprints/BP_TopDownCharacter"));
 	if (PlayerPawnBPClass.Class != nullptr)

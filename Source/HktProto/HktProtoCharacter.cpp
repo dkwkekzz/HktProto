@@ -10,6 +10,8 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Materials/Material.h"
 #include "Engine/World.h"
+#include "Net/UnrealNetwork.h"
+#include "HktStateTreeComponent.h"
 
 AHktProtoCharacter::AHktProtoCharacter()
 {
@@ -40,12 +42,31 @@ AHktProtoCharacter::AHktProtoCharacter()
 	TopDownCameraComponent->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	TopDownCameraComponent->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+	// 1. 컴포넌트 생성
+	StateTreeComponent = CreateDefaultSubobject<UHktStateTreeComponent>(TEXT("StateTreeComponent"));
+
 	// Activate ticking in order to update the cursor every frame.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
+void AHktProtoCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 2. [핵심] 컴포넌트의 델리게이트에 내 함수(OnStateTagChanged)를 바인딩
+	if (StateTreeComponent)
+	{
+		StateTreeComponent->OnStateTagChanged.AddUObject(this, &AHktProtoCharacter::OnStateTagChanged);
+	}
+}
+
 void AHktProtoCharacter::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+}
+
+void AHktProtoCharacter::OnStateTagChanged(FGameplayTag Tag, bool bIsAdded)
+{
+	UE_LOG(LogTemp, Log, TEXT("OnStateTagChanged: %s, %d"), *Tag.ToString(), bIsAdded);
 }
