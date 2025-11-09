@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HktMassNpcVisualizationProcessor.h"
+#include "HktMassNpcManagerSubsystem.h"
 #include "HktMassNpcFragments.h"
 #include "MassCommonFragments.h"
 #include "MassExecutionContext.h"
@@ -8,6 +9,7 @@
 #include "Engine/World.h"
 
 UHktMassNpcVisualizationProcessor::UHktMassNpcVisualizationProcessor()
+	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
@@ -15,17 +17,21 @@ UHktMassNpcVisualizationProcessor::UHktMassNpcVisualizationProcessor()
 	ExecutionOrder.ExecuteAfter.Add(FName(TEXT("Movement")));
 }
 
+void UHktMassNpcVisualizationProcessor::InitializeInternal(UObject& Owner, const TSharedRef<FMassEntityManager>& EntityManager)
+{
+    Super::InitializeInternal(Owner, EntityManager);
+	NpcManagerSubsystem = UWorld::GetSubsystem<UHktMassNpcManagerSubsystem>(Owner.GetWorld());
+}
+
 void UHktMassNpcVisualizationProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
+	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	EntityQuery.AddRequirement<FHktNpcVisualizationFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FHktNpcTypeFragment>(EMassFragmentAccess::ReadOnly);
 }
 
 void UHktMassNpcVisualizationProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	FMassEntityQuery EntityQuery;
-	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FHktNpcVisualizationFragment>(EMassFragmentAccess::ReadWrite);
-	EntityQuery.AddRequirement<FHktNpcTypeFragment>(EMassFragmentAccess::ReadOnly);
-
 	// 시각화 업데이트 로직
 	// 실제로는 Instanced Static Mesh를 업데이트하거나
 	// LOD 시스템과 통합하여 처리해야 합니다.
@@ -36,6 +42,11 @@ void UHktMassNpcVisualizationProcessor::Execute(FMassEntityManager& EntityManage
 		const TConstArrayView<FTransformFragment> TransformList = Context.GetFragmentView<FTransformFragment>();
 		const TArrayView<FHktNpcVisualizationFragment> VisualizationList = Context.GetMutableFragmentView<FHktNpcVisualizationFragment>();
 		const TConstArrayView<FHktNpcTypeFragment> TypeList = Context.GetFragmentView<FHktNpcTypeFragment>();
+
+		if (!NpcManagerSubsystem)
+		{
+			return;
+		}
 
 		for (int32 EntityIndex = 0; EntityIndex < NumEntities; ++EntityIndex)
 		{
@@ -58,13 +69,17 @@ void UHktMassNpcVisualizationProcessor::Execute(FMassEntityManager& EntityManage
 				// 실제 구현 시 적절한 ISM 컴포넌트를 선택하여 업데이트
 				UInstancedStaticMeshComponent* TargetISM = nullptr;
 
-				if (TypeFragment.NpcType == 0) // Melee
+				switch(TypeFragment.NpcType)
 				{
-					TargetISM = MeleeNpcMeshISM;
-				}
-				else if (TypeFragment.NpcType == 1) // Ranged
-				{
-					TargetISM = RangedNpcMeshISM;
+					case 0: // Melee
+						TargetISM = NpcManagerSubsystem->GetMeleeNpcMeshISM();
+						break;
+					case 1: // Ranged
+						TargetISM = NpcManagerSubsystem->GetRangedNpcMeshISM();
+						break;
+					case 2: // Tank
+						TargetISM = NpcManagerSubsystem->GetTankNpcMeshISM();
+						break;
 				}
 
 				if (TargetISM && VisualizationFragment.InstanceIndex >= 0)

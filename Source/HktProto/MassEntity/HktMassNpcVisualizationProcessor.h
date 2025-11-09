@@ -7,6 +7,8 @@
 #include "MassRepresentationProcessor.h"
 #include "HktMassNpcVisualizationProcessor.generated.h"
 
+class UHktMassNpcManagerSubsystem;
+
 // NPC의 시각적 표현을 담는 Fragment
 USTRUCT()
 struct FHktNpcVisualizationFragment : public FMassFragment
@@ -36,10 +38,16 @@ public:
 	UHktMassNpcVisualizationProcessor();
 
 protected:
+	virtual void InitializeInternal(UObject& Owner, const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 private:
+	FMassEntityQuery EntityQuery;
+	
+	UPROPERTY()
+	TObjectPtr<UHktMassNpcManagerSubsystem> NpcManagerSubsystem;
+
 	// Instanced Static Mesh Component 참조들
 	UPROPERTY(Transient)
 	TObjectPtr<UInstancedStaticMeshComponent> MeleeNpcMeshISM;

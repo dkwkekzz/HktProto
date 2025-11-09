@@ -6,6 +6,7 @@
 #include "MassExecutionContext.h"
 
 UHktMassNpcAIProcessor::UHktMassNpcAIProcessor()
+	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
@@ -15,17 +16,15 @@ UHktMassNpcAIProcessor::UHktMassNpcAIProcessor()
 
 void UHktMassNpcAIProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
-}
-
-void UHktMassNpcAIProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
-{
-	FMassEntityQuery EntityQuery;
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FHktNpcTargetFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FHktNpcCombatFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FHktNpcPatrolFragment>(EMassFragmentAccess::ReadOnly);
+}
 
+void UHktMassNpcAIProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
 	EntityQuery.ForEachEntityChunk(Context, [this](FMassExecutionContext& Context)
 	{
 		const int32 NumEntities = Context.GetNumEntities();
@@ -182,6 +181,7 @@ void UHktMassNpcAIProcessor::ProcessAttackState(FMassExecutionContext& Context, 
 //------------------------------------------------------------------------------
 
 UHktMassNpcPatrolProcessor::UHktMassNpcPatrolProcessor()
+	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
@@ -190,15 +190,13 @@ UHktMassNpcPatrolProcessor::UHktMassNpcPatrolProcessor()
 
 void UHktMassNpcPatrolProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
+	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	EntityQuery.AddRequirement<FHktNpcPatrolFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadOnly);
 }
 
 void UHktMassNpcPatrolProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	FMassEntityQuery EntityQuery;
-	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FHktNpcPatrolFragment>(EMassFragmentAccess::ReadWrite);
-	EntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadOnly);
-
 	// 순찰 경로 업데이트 로직
 	EntityQuery.ForEachEntityChunk(Context, [this](FMassExecutionContext& Context)
 	{

@@ -7,6 +7,7 @@
 #include "MassMovementFragments.h"
 
 UHktMassNpcMovementProcessor::UHktMassNpcMovementProcessor()
+	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
@@ -15,18 +16,14 @@ UHktMassNpcMovementProcessor::UHktMassNpcMovementProcessor()
 
 void UHktMassNpcMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
-	// NOTE: This function is now empty since the query is created in Execute.
-	// You could use it for other one-time setup if needed.
-}
-
-void UHktMassNpcMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
-{
-	FMassEntityQuery EntityQuery;
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FHktNpcMovementFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FHktNpcTargetFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadOnly);
+}
 
+void UHktMassNpcMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
 	EntityQuery.ForEachEntityChunk(Context, [this](FMassExecutionContext& Context)
 	{
 		const int32 NumEntities = Context.GetNumEntities();

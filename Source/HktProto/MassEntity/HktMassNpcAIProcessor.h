@@ -20,6 +20,8 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 private:
+	FMassEntityQuery EntityQuery;
+
 	// Helper functions
 	void ProcessIdleState(FMassExecutionContext& Context, int32 EntityIndex);
 	void ProcessPatrolState(FMassExecutionContext& Context, int32 EntityIndex);
@@ -39,5 +41,8 @@ public:
 protected:
 	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+private:
+	FMassEntityQuery EntityQuery;
 };
 
