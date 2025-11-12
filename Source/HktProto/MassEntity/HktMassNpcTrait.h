@@ -4,7 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTraitBase.h"
+#include "MassRepresentationTypes.h"
 #include "HktMassNpcTrait.generated.h"
+
+class UAnimToTextureDataAsset;
 
 // NPC 엔티티의 기본 구성을 정의하는 Trait
 UCLASS(meta = (DisplayName = "Hkt Npc Trait"))
@@ -16,6 +19,12 @@ public:
 	// NPC 타입
 	UPROPERTY(EditAnywhere, Category = "NPC")
 	uint8 NpcType = 0; // 0: Melee, 1: Ranged, 2: Tank, 3: Support
+
+	UPROPERTY(EditAnywhere, Category = "NPC")
+	FStaticMeshInstanceVisualizationDesc NpcMeshDesc;
+
+	UPROPERTY(EditAnywhere, Category = "Animation")
+	TObjectPtr<UAnimToTextureDataAsset> AnimToTextureData;
 
 	// 팀 ID
 	UPROPERTY(EditAnywhere, Category = "NPC")
@@ -108,4 +117,3 @@ public:
 		AttackCooldown = 2.5f;
 	}
 };
-

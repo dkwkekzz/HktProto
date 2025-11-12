@@ -68,8 +68,8 @@ void UHktMassNpcMovementProcessor::Execute(FMassEntityManager& EntityManager, FM
 					NewRotation.Pitch = 0.0f; // 지면과 평행하게
 					NewRotation.Roll = 0.0f;
 
-					Transform.SetLocation(NewLocation);
-					Transform.SetRotation(NewRotation.Quaternion());
+					//Transform.SetLocation(NewLocation);
+					//Transform.SetRotation(NewRotation.Quaternion());
 				}
 			}
 		}

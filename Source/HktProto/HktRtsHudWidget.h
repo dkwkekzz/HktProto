@@ -38,5 +38,4 @@ protected:
 	/** 유닛 생성 버튼. UMG 에디터에서 이름이 일치하는 위젯과 자동으로 바인딩됩니다. */
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> Button_CreateUnit;
-	
 };

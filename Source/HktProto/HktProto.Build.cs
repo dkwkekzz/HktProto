@@ -32,7 +32,8 @@ public class HktProto : ModuleRules
             "MassLOD",
             "MassSimulation",
             "StructUtils",
-            "ZoneGraph"
+            "ZoneGraph",
+            "AnimToTexture"
         });
     }
 }
