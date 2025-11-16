@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{C274F80B-44FB-EC2C-993B-5986F6C7E6C3}",
+	"EngineAssociation": "5.6",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -56,6 +56,10 @@
 		},
 		{
 			"Name": "AnimToTexture",
+			"Enabled": true
+		},
+		{
+			"Name": "HktMass",
 			"Enabled": true
 		}
 	]

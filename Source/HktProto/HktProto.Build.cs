@@ -14,7 +14,7 @@ public class HktProto : ModuleRules
             "CoreUObject", 
             "Engine", 
             "InputCore", 
-            "EnhancedInput", // Enhanced Input ����� ���� �߰�
+            "EnhancedInput", // Enhanced Input 시스템 사용 추가
             "NavigationSystem", 
             "AIModule", 
             "Niagara",
@@ -22,18 +22,8 @@ public class HktProto : ModuleRules
             "GameplayAbilities",
             "GameplayTags",
             "GameplayTasks",
-            // MassEntity 모듈
-            "MassEntity",
-            "MassCommon",
-            "MassMovement",
-            "MassSpawner",
-            "MassActors",
-            "MassRepresentation",
-            "MassLOD",
-            "MassSimulation",
-            "StructUtils",
-            "ZoneGraph",
-            "AnimToTexture"
+            // HktMass 플러그인 (Mass Entity 시스템)
+            "HktMass",
         });
     }
 }
