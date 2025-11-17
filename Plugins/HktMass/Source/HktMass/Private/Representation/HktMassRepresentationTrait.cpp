@@ -1,20 +1,20 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
-#include "HktMassNpcRepresentationTrait.h"
+#include "HktMassRepresentationTrait.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassRepresentationFragments.h"
 #include "MassRepresentationSubsystem.h"
 #include "MassLODFragments.h"
 
-void UHktMassNpcRepresentationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
+void UHktMassRepresentationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	// Representation Fragment 추�?
+	// Representation Fragment 추가
 	FMassRepresentationFragment& RepresentationFragment = BuildContext.AddFragment_GetRef<FMassRepresentationFragment>();
 	UMassRepresentationSubsystem* RepresentationSubsystem = UWorld::GetSubsystem<UMassRepresentationSubsystem>(&World);
 	if (RepresentationSubsystem)
 	{
 		RepresentationFragment.CurrentRepresentation = EMassRepresentationType::StaticMeshInstance;
-		RepresentationFragment.StaticMeshDescHandle = RepresentationSubsystem->FindOrAddStaticMeshDesc(NpcMeshDesc);
+		RepresentationFragment.StaticMeshDescHandle = RepresentationSubsystem->FindOrAddStaticMeshDesc(MeshDesc);
 	}
 
 	// Representation LOD Fragment
