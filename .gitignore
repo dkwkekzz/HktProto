@@ -50,3 +50,6 @@ Thumbs.db
 /Plugins/**/Binaries/
 /Plugins/**/Intermediate/
 /Plugins/**/DerivedDataCache/
+
+# Windows 바로 가기(.lnk) 파일 모두 무시
+lnks/*

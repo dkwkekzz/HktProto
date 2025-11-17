@@ -1,0 +1,28 @@
+// Copyright Hkt Studios, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "MassEntityTraitBase.h"
+#include "HktMassNpcAnimationTrait.generated.h"
+
+class UAnimToTextureDataAsset;
+
+/**
+ * NPC ?†ÎãàÎ©îÏù¥??Í¥Ä??Trait
+ * Animation FragmentÎ•?Ï∂îÍ?
+ */
+UCLASS(meta = (DisplayName = "Hkt Npc Animation"))
+class HKTMASS_API UHktMassNpcAnimationTrait : public UMassEntityTraitBase
+{
+	GENERATED_BODY()
+
+public:
+	// AnimToTexture ?∞Ïù¥???êÏÖã
+	UPROPERTY(EditAnywhere, Category = "Animation")
+	TObjectPtr<UAnimToTextureDataAsset> AnimToTextureData;
+
+protected:
+	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
+};
+
