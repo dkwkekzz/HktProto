@@ -2,7 +2,7 @@
 
 #include "HktMassNpcAnimationProcessor.h"
 #include "HktMassNpcAnimationTypes.h"
-#include "HktMassNpcFragments.h"
+#include "HktMassCommonFragments.h"
 #include "MassCommonFragments.h"
 #include "MassMovementFragments.h"
 #include "MassExecutionContext.h"

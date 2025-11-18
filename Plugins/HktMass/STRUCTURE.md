@@ -196,3 +196,4 @@ void UHktMassNpcMovementTrait::BuildTemplate(...)
 - **API/Implementation Split**: 공개 API 최소화
 - **Separation of Concerns**: 각 시스템 독립적 관리
 
+

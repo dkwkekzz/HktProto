@@ -4,19 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
-#include "HktMassNpcFragments.generated.h"
+#include "HktMassCommonFragments.generated.h"
 
-// NPC??ì²´ë ¥ ë°??„íˆ¬ ?ì„±???´ëŠ” Fragment
+// NPC??ì²´ë ¥ ï¿½??ï¿½íˆ¬ ?ï¿½ì„±???ï¿½ëŠ” Fragment
 USTRUCT()
 struct FHktNpcCombatFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	// ?„ì¬ ì²´ë ¥
+	// ?ï¿½ì¬ ì²´ë ¥
 	UPROPERTY()
 	float CurrentHealth = 100.0f;
 
-	// ìµœë? ì²´ë ¥
+	// ìµœï¿½? ì²´ë ¥
 	UPROPERTY()
 	float MaxHealth = 100.0f;
 
@@ -32,87 +32,87 @@ struct FHktNpcCombatFragment : public FMassFragment
 	UPROPERTY()
 	float AttackCooldown = 1.0f;
 
-	// ë§ˆì?ë§?ê³µê²© ?œê°„
+	// ë§ˆï¿½?ï¿½?ê³µê²© ?ï¿½ê°„
 	UPROPERTY()
 	float LastAttackTime = 0.0f;
 };
 
-// NPC???€ê²??•ë³´ë¥??´ëŠ” Fragment
+// NPC???ï¿½ï¿½??ï¿½ë³´ï¿½??ï¿½ëŠ” Fragment
 USTRUCT()
 struct FHktNpcTargetFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	// ?€ê²??”í‹°??(?¤ë¥¸ NPC???Œë ˆ?´ì–´)
+	// ?ï¿½ï¿½??ï¿½í‹°??(?ï¿½ë¥¸ NPC???ï¿½ë ˆ?ï¿½ì–´)
 	//UPROPERTY()
 	//FMassEntityHandle TargetEntity;
 
-	// ?€ê²??„ì¹˜ (ê³ ì •???„ì¹˜ë¡??´ë™??ê²½ìš°)
+	// ?ï¿½ï¿½??ï¿½ì¹˜ (ê³ ì •???ï¿½ì¹˜ï¿½??ï¿½ë™??ê²½ìš°)
 	UPROPERTY()
 	FVector TargetLocation = FVector::ZeroVector;
 
-	// ?€ê²?ê±°ë¦¬
+	// ?ï¿½ï¿½?ê±°ë¦¬
 	UPROPERTY()
 	float DistanceToTarget = 0.0f;
 
-	// ?€ê²Ÿì´ ? íš¨?œì? ?¬ë?
+	// ?ï¿½ê²Ÿì´ ?ï¿½íš¨?ï¿½ï¿½? ?ï¿½ï¿½?
 	UPROPERTY()
 	bool bHasValidTarget = false;
 };
 
-// NPC??AI ?íƒœë¥??´ëŠ” Fragment
+// NPC??AI ?ï¿½íƒœï¿½??ï¿½ëŠ” Fragment
 USTRUCT()
 struct FHktNpcStateFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	// AI ?íƒœ
+	// AI ?ï¿½íƒœ
 	UPROPERTY()
 	uint8 CurrentState = 0; // 0: Idle, 1: Patrol, 2: Chase, 3: Attack, 4: Dead
 
-	// ?íƒœ ?€?´ë¨¸
+	// ?ï¿½íƒœ ?ï¿½?ï¿½ë¨¸
 	UPROPERTY()
 	float StateTimer = 0.0f;
 
-	// ?œì°° ?¬ì¸???¸ë±??
+	// ?ï¿½ì°° ?ï¿½ì¸???ï¿½ë±??
 	UPROPERTY()
 	int32 PatrolPointIndex = 0;
 };
 
-// NPC ?€???•ë³´ë¥??´ëŠ” Fragment (Tagë¡??€ì²?ê°€?¥í•˜ì§€ë§??ˆì‹œë¡??¬í•¨)
+// NPC ?ï¿½???ï¿½ë³´ï¿½??ï¿½ëŠ” Fragment (Tagï¿½??ï¿½ï¿½?ê°€?ï¿½í•˜ì§€ï¿½??ï¿½ì‹œï¿½??ï¿½í•¨)
 USTRUCT()
 struct FHktNpcTypeFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	// NPC ?€??(0: Melee, 1: Ranged, 2: Tank, 3: Support)
+	// NPC ?ï¿½??(0: Melee, 1: Ranged, 2: Tank, 3: Support)
 	UPROPERTY()
 	uint8 NpcType = 0;
 
-	// NPC ?€ ID
+	// NPC ?ï¿½ ID
 	UPROPERTY()
 	int32 TeamId = 0;
 
-	// NPC ?ˆë²¨
+	// NPC ?ï¿½ë²¨
 	UPROPERTY()
 	int32 Level = 1;
 };
 
-// ?œì°° ê²½ë¡œ ?•ë³´ë¥??´ëŠ” Fragment
+// ?ï¿½ì°° ê²½ë¡œ ?ï¿½ë³´ï¿½??ï¿½ëŠ” Fragment
 USTRUCT()
 struct FHktNpcPatrolFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	// ?œì°° ?¬ì¸?¸ë“¤
+	// ?ï¿½ì°° ?ï¿½ì¸?ï¿½ë“¤
 	UPROPERTY()
 	TArray<FVector> PatrolPoints;
 
-	// ?œì°° ë°˜ê²½
+	// ?ï¿½ì°° ë°˜ê²½
 	UPROPERTY()
 	float PatrolRadius = 500.0f;
 
-	// ê°??¬ì¸?¸ì—???€ê¸??œê°„
+	// ï¿½??ï¿½ì¸?ï¿½ì—???ï¿½ï¿½??ï¿½ê°„
 	UPROPERTY()
 	float WaitTimeAtPoint = 2.0f;
 };

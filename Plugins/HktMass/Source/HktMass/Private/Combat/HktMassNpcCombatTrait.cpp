@@ -1,7 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassNpcCombatTrait.h"
-#include "HktMassNpcFragments.h"
+#include "HktMassCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 
 void UHktMassNpcCombatTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const

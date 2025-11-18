@@ -6,7 +6,7 @@
 #include "MassReplicationTypes.h"
 #include "MassSpawnerTypes.h"
 #include "MassClientBubbleHandler.h"
-#include "HktMassNpcReplicationTypes.generated.h"
+#include "HktMassReplicationTypes.generated.h"
 
 /**
  * ?�트?�크�??�송?�는 NPC ?�이??구조�?
@@ -16,8 +16,6 @@ USTRUCT()
 struct HKTMASS_API FHktReplicatedNpcAgent : public FReplicatedAgentBase
 {
 	GENERATED_BODY()
-
-	FHktReplicatedNpcAgent() = default;
 
 	// Transform ?�이??
 	UPROPERTY()

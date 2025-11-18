@@ -6,11 +6,11 @@
 #include "MassClientBubbleInfoBase.h"
 #include "MassClientBubbleHandler.h"
 #include "MassClientBubbleSerializerBase.h"
-#include "HktMassNpcReplicationTypes.h"
-#include "HktMassNpcClientBubbleInfo.generated.h"
+#include "HktMassReplicationTypes.h"
+#include "HktMassClientBubbleInfo.generated.h"
 
 //----------------------------------------------------------------------//
-// FHktMassNpcClientBubbleHandler
+// FHktMassClientBubbleHandler
 //----------------------------------------------------------------------//
 
 /**
@@ -18,7 +18,7 @@
  * TClientBubbleHandlerBase ?�플릿을 ?�속?�여 FastArray 관�?
  * ?�제 로직?� Helper ?�래?�에 ?�임?�여 ?�버/?�라?�언??코드 분리
  */
-class HKTMASS_API FHktMassNpcClientBubbleHandler : public TClientBubbleHandlerBase<FHktReplicatedNpcAgentArrayItem>
+class HKTMASS_API FHktMassClientBubbleHandler : public TClientBubbleHandlerBase<FHktReplicatedNpcAgentArrayItem>
 {
 public:
 	typedef TClientBubbleHandlerBase<FHktReplicatedNpcAgentArrayItem> Super;
@@ -26,9 +26,6 @@ public:
 	// TClientBubbleHandlerBase??가???�수 구현
 	
 #if UE_REPLICATION_COMPILE_CLIENT_CODE
-	/** ?�라?�언?? Agent가 ?�거?�기 ???�출 */
-	virtual void PreReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize) override;
-	
 	/** ?�라?�언?? Agent가 추�??????�출 */
 	virtual void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize) override;
 	
@@ -47,10 +44,16 @@ public:
 	/** ?�버: Agent ?�거 */
 	void RemoveAgent(FMassReplicatedAgentHandle Handle);
 #endif // UE_REPLICATION_COMPILE_SERVER_CODE
+
+private:
+#if UE_REPLICATION_COMPILE_CLIENT_CODE
+	/** ?�티?�의 Fragment�?Agent ?�이?�로 ?�데?�트 */
+	void UpdateEntityFragments(const FMassEntityView& EntityView, const FHktReplicatedNpcAgent& Agent);
+#endif // UE_REPLICATION_COMPILE_CLIENT_CODE
 };
 
 //----------------------------------------------------------------------//
-// FHktMassNpcClientBubbleSerializer
+// FHktMassClientBubbleSerializer
 //----------------------------------------------------------------------//
 
 /**
@@ -58,33 +61,33 @@ public:
  * FastArray�??�유?�고 NetDeltaSerialize�?구현?�여 ?�율?�인 ?��? ?�송 지??
  */
 USTRUCT()
-struct HKTMASS_API FHktMassNpcClientBubbleSerializer : public FMassClientBubbleSerializerBase
+struct HKTMASS_API FHktMassClientBubbleSerializer : public FMassClientBubbleSerializerBase
 {
 	GENERATED_BODY()
 
-	FHktMassNpcClientBubbleSerializer();
+	FHktMassClientBubbleSerializer();
 
 	/** NetDeltaSerialize 구현 - FastArray???��? 직렬??*/
 	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParams);
 
 	/** Handler ?�근??*/
-	FHktMassNpcClientBubbleHandler& GetBubbleHandler() { return Bubble; }
+	FHktMassClientBubbleHandler& GetBubbleHandler() { return Bubble; }
 
 public:
 	/** Handler (로직 처리) */
-	FHktMassNpcClientBubbleHandler Bubble;
+	FHktMassClientBubbleHandler Bubble;
 
 protected:
 	/** FastArray ?�이??(?�제 복제?�는 Agent 배열) */
 	UPROPERTY(Transient)
 	TArray<FHktReplicatedNpcAgentArrayItem> Agents;
 
-	friend FHktMassNpcClientBubbleHandler;
+	friend FHktMassClientBubbleHandler;
 };
 
 // NetDeltaSerializer 지???�성 ?�언
 template<>
-struct TStructOpsTypeTraits<FHktMassNpcClientBubbleSerializer> : public TStructOpsTypeTraitsBase2<FHktMassNpcClientBubbleSerializer>
+struct TStructOpsTypeTraits<FHktMassClientBubbleSerializer> : public TStructOpsTypeTraitsBase2<FHktMassClientBubbleSerializer>
 {
 	enum
 	{
@@ -94,23 +97,23 @@ struct TStructOpsTypeTraits<FHktMassNpcClientBubbleSerializer> : public TStructO
 };
 
 //----------------------------------------------------------------------//
-// AHktMassNpcClientBubbleInfo
+// AHktMassClientBubbleInfo
 //----------------------------------------------------------------------//
 
 /**
- * ?�라?�언?�별 NPC 복제 ?�터
- * �??�라?�언?�마???�버?�서 ?�나???�성??
+ * Entity별 복제 터
+ * Entity마버서 나성??
  */
-UCLASS()
-class HKTMASS_API AHktMassNpcClientBubbleInfo : public AMassClientBubbleInfoBase
+UCLASS(Blueprintable)
+class HKTMASS_API AHktMassClientBubbleInfo : public AMassClientBubbleInfoBase
 {
 	GENERATED_BODY()
 
 public:
-	AHktMassNpcClientBubbleInfo(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	AHktMassClientBubbleInfo(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** Serializer ?�근??*/
-	FHktMassNpcClientBubbleSerializer& GetNpcSerializer() { return NpcSerializer; }
+	FHktMassClientBubbleSerializer& GetNpcSerializer() { return NpcSerializer; }
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -118,6 +121,5 @@ protected:
 protected:
 	/** NPC Serializer (복제?�는 FastArray ?�유) */
 	UPROPERTY(Replicated, Transient)
-	FHktMassNpcClientBubbleSerializer NpcSerializer;
+	FHktMassClientBubbleSerializer NpcSerializer;
 };
-
