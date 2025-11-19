@@ -3,6 +3,7 @@
 #include "HktMassNpcAnimationProcessor.h"
 #include "HktMassNpcAnimationTypes.h"
 #include "HktMassCommonFragments.h"
+#include "Movement/HktMassMoveToTargetTrait.h"
 #include "MassCommonFragments.h"
 #include "MassMovementFragments.h"
 #include "MassExecutionContext.h"
@@ -71,7 +72,7 @@ UHktMassNpcAnimationProcessor::UHktMassNpcAnimationProcessor()
 void UHktMassNpcAnimationProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
 	AnimationEntityQuery.AddRequirement<FHktMassNpcAnimationFragment>(EMassFragmentAccess::ReadWrite);
-	AnimationEntityQuery.AddRequirement<FMassVelocityFragment>(EMassFragmentAccess::ReadOnly);
+	AnimationEntityQuery.AddRequirement<FHktMassVelocityFragment>(EMassFragmentAccess::ReadOnly);
 	AnimationEntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	AnimationEntityQuery.AddRequirement<FMassRepresentationFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 }
@@ -92,7 +93,7 @@ void UHktMassNpcAnimationProcessor::Execute(FMassEntityManager& EntityManager, F
 	AnimationEntityQuery.ForEachEntityChunk(Context, [this, GlobalTime](FMassExecutionContext& Context)
 	{
 		TArrayView<FHktMassNpcAnimationFragment> AnimationDataList = Context.GetMutableFragmentView<FHktMassNpcAnimationFragment>();
-		TConstArrayView<FMassVelocityFragment> VelocityList = Context.GetFragmentView<FMassVelocityFragment>();
+		TConstArrayView<FHktMassVelocityFragment> VelocityList = Context.GetFragmentView<FHktMassVelocityFragment>();
 		
 		// Optional fragments - just get the view and check IsEmpty()
 		TConstArrayView<FHktNpcStateFragment> StateList = Context.GetFragmentView<FHktNpcStateFragment>();
@@ -101,7 +102,7 @@ void UHktMassNpcAnimationProcessor::Execute(FMassEntityManager& EntityManager, F
 		for (FMassExecutionContext::FEntityIterator EntityIt = Context.CreateEntityIterator(); EntityIt; ++EntityIt)
 		{
 			FHktMassNpcAnimationFragment& AnimationData = AnimationDataList[EntityIt];
-			const FMassVelocityFragment& Velocity = VelocityList[EntityIt];
+			const FHktMassVelocityFragment& Velocity = VelocityList[EntityIt];
 			
 			// Skip if not visible (optional optimization)
 			if (!RepresentationList.IsEmpty())

@@ -2,11 +2,14 @@
 
 #include "HktMassNpcAnimationTrait.h"
 #include "HktMassNpcAnimationTypes.h"
+#include "HktMassCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 #include "AnimToTextureDataAsset.h"
 
 void UHktMassNpcAnimationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
+	BuildContext.AddFragment<FHktNpcStateFragment>();
+
 	// Animation Fragment 추�?
 	if (AnimToTextureData)
 	{

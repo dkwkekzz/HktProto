@@ -24,10 +24,6 @@ struct HKTMASS_API FHktReplicatedNpcAgent : public FReplicatedAgentBase
 	UPROPERTY()
 	FRotator Rotation = FRotator::ZeroRotator;
 
-	// NPC ?�??(0: Melee, 1: Ranged, 2: Tank)
-	UPROPERTY()
-	uint8 NpcType = 0;
-
 	// AI ?�태 (0: Idle, 1: Patrol, 2: Chase, 3: Attack, 4: Dead)
 	UPROPERTY()
 	uint8 CurrentState = 0;

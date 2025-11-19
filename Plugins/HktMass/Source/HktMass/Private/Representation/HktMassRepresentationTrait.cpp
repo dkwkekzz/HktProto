@@ -1,6 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassRepresentationTrait.h"
+#include "MassCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassRepresentationFragments.h"
 #include "MassRepresentationSubsystem.h"
@@ -8,6 +9,8 @@
 
 void UHktMassRepresentationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
+	BuildContext.AddFragment<FTransformFragment>();
+	
 	// Representation Fragment 추가
 	FMassRepresentationFragment& RepresentationFragment = BuildContext.AddFragment_GetRef<FMassRepresentationFragment>();
 	UMassRepresentationSubsystem* RepresentationSubsystem = UWorld::GetSubsystem<UMassRepresentationSubsystem>(&World);

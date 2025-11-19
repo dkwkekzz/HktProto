@@ -1,6 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassClientBubbleInfo.h"
+#include "Movement/HktMassMoveToTargetTrait.h"
 #include "Net/UnrealNetwork.h"
 #include "MassEntityView.h"
 #include "MassCommonFragments.h"
@@ -18,8 +19,7 @@ void FHktMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 	auto AddRequirementsForSpawnQuery = [](FMassEntityQuery& InQuery)
 	{
 		InQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
-		InQuery.AddRequirement<FMassVelocityFragment>(EMassFragmentAccess::ReadWrite);
-		InQuery.AddRequirement<FHktNpcTypeFragment>(EMassFragmentAccess::ReadWrite);
+		InQuery.AddRequirement<FHktMassVelocityFragment>(EMassFragmentAccess::ReadWrite);
 		InQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadWrite);
 		InQuery.AddRequirement<FHktNpcCombatFragment>(EMassFragmentAccess::ReadWrite);
 	};
@@ -62,15 +62,9 @@ void FHktMassClientBubbleHandler::UpdateEntityFragments(const FMassEntityView& E
 	}
 
 	// Velocity 업데이트 (보간을 위한 중요)
-	if (FMassVelocityFragment* VelocityFragment = EntityView.GetFragmentDataPtr<FMassVelocityFragment>())
+	if (FHktMassVelocityFragment* VelocityFragment = EntityView.GetFragmentDataPtr<FHktMassVelocityFragment>())
 	{
 		VelocityFragment->Value = Agent.Velocity;
-	}
-
-	// NPC Type 업데이트
-	if (FHktNpcTypeFragment* TypeFragment = EntityView.GetFragmentDataPtr<FHktNpcTypeFragment>())
-	{
-		TypeFragment->NpcType = Agent.NpcType;
 	}
 
 	// State 업데이트

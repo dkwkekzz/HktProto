@@ -3,6 +3,7 @@
 #include "HktMassReplicator.h"
 #include "HktMassClientBubbleInfo.h"
 #include "HktMassCommonFragments.h"
+#include "Movement/HktMassMoveToTargetTrait.h"
 #include "MassCommonFragments.h"
 #include "MassMovementFragments.h"
 #include "MassExecutionContext.h"
@@ -16,8 +17,7 @@ void UHktMassReplicator::AddRequirements(FMassEntityQuery& EntityQuery)
 {
 	// 복제???�요??Fragment ?�구?�항 추�?
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FMassVelocityFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FHktNpcTypeFragment>(EMassFragmentAccess::ReadOnly);
+	EntityQuery.AddRequirement<FHktMassVelocityFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FHktNpcCombatFragment>(EMassFragmentAccess::ReadOnly);
 	// ?�고: Animation Fragment??복제?��? ?�음 (클라?�언???�체 계산)
@@ -48,8 +48,7 @@ void UHktMassReplicator::ProcessClientReplication(
 			const TConstArrayView<FReplicationTemplateIDFragment> TemplateIDList = Context.GetFragmentView<FReplicationTemplateIDFragment>();
 			const TConstArrayView<FMassNetworkIDFragment> NetworkIDList = Context.GetFragmentView<FMassNetworkIDFragment>();
 			const TConstArrayView<FTransformFragment> TransformList = Context.GetFragmentView<FTransformFragment>();
-			const TConstArrayView<FMassVelocityFragment> VelocityList = Context.GetFragmentView<FMassVelocityFragment>();
-			const TConstArrayView<FHktNpcTypeFragment> TypeList = Context.GetFragmentView<FHktNpcTypeFragment>();
+			const TConstArrayView<FHktMassVelocityFragment> VelocityList = Context.GetFragmentView<FHktMassVelocityFragment>();
 			const TConstArrayView<FHktNpcStateFragment> StateList = Context.GetFragmentView<FHktNpcStateFragment>();
 			const TConstArrayView<FHktNpcCombatFragment> CombatList = Context.GetFragmentView<FHktNpcCombatFragment>();
 			
@@ -60,7 +59,6 @@ void UHktMassReplicator::ProcessClientReplication(
 			Agent.Position = Transform.GetLocation();
 			Agent.Rotation = Transform.GetRotation().Rotator();
 			Agent.Velocity = VelocityList[EntityIdx].Value;
-			Agent.NpcType = TypeList[EntityIdx].NpcType;
 			Agent.CurrentState = StateList[EntityIdx].CurrentState;
 			Agent.CurrentHealth = CombatList[EntityIdx].CurrentHealth;
 			// ?�고: Animation??복제?��? ?�음 - ?�라?�언?�에??Velocity + State�??�탕?�로 계산
@@ -81,8 +79,7 @@ void UHktMassReplicator::ProcessClientReplication(
 			const TConstArrayView<FReplicationTemplateIDFragment> TemplateIDList = Context.GetFragmentView<FReplicationTemplateIDFragment>();
 			const TConstArrayView<FMassNetworkIDFragment> NetworkIDList = Context.GetFragmentView<FMassNetworkIDFragment>();
 			const TConstArrayView<FTransformFragment> TransformList = Context.GetFragmentView<FTransformFragment>();
-			const TConstArrayView<FMassVelocityFragment> VelocityList = Context.GetFragmentView<FMassVelocityFragment>();
-			const TConstArrayView<FHktNpcTypeFragment> TypeList = Context.GetFragmentView<FHktNpcTypeFragment>();
+			const TConstArrayView<FHktMassVelocityFragment> VelocityList = Context.GetFragmentView<FHktMassVelocityFragment>();
 			const TConstArrayView<FHktNpcStateFragment> StateList = Context.GetFragmentView<FHktNpcStateFragment>();
 			const TConstArrayView<FHktNpcCombatFragment> CombatList = Context.GetFragmentView<FHktNpcCombatFragment>();
 			const TArrayView<FMassReplicatedAgentFragment> ReplicatedAgentList = Context.GetMutableFragmentView<FMassReplicatedAgentFragment>();
@@ -95,7 +92,6 @@ void UHktMassReplicator::ProcessClientReplication(
 			Agent.Position = Transform.GetLocation();
 			Agent.Rotation = Transform.GetRotation().Rotator();
 			Agent.Velocity = VelocityList[EntityIdx].Value;
-			Agent.NpcType = TypeList[EntityIdx].NpcType;
 			Agent.CurrentState = StateList[EntityIdx].CurrentState;
 			Agent.CurrentHealth = CombatList[EntityIdx].CurrentHealth;
 			// ?�고: Animation??복제?��? ?�음 - ?�라?�언?�에??Velocity + State�??�탕?�로 계산
