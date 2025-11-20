@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HktMassSimpleAITrait.h"
+#include "HktMassMovementFragments.h"
 #include "MassCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 #include "Kismet/GameplayStatics.h"

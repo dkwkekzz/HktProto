@@ -1,9 +1,9 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassNpcAnimationProcessor.h"
-#include "HktMassNpcAnimationTypes.h"
+#include "HktMassAnimationFragments.h"
 #include "HktMassCommonFragments.h"
-#include "Movement/HktMassMoveToTargetTrait.h"
+#include "HktMassMovementFragments.h"
 #include "MassCommonFragments.h"
 #include "MassMovementFragments.h"
 #include "MassExecutionContext.h"

@@ -3,7 +3,7 @@
 #include "HktMassReplicator.h"
 #include "HktMassClientBubbleInfo.h"
 #include "HktMassCommonFragments.h"
-#include "Movement/HktMassMoveToTargetTrait.h"
+#include "HktMassMovementFragments.h"
 #include "MassCommonFragments.h"
 #include "MassMovementFragments.h"
 #include "MassExecutionContext.h"

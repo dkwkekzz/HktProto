@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HktMassMoveToTargetProcessor.h"
-#include "HktMassMoveToTargetTrait.h"
+#include "HktMassMovementFragments.h"
 #include "MassCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 #include "Engine/World.h"

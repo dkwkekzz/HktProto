@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
-#include "HktMassNpcAnimationTypes.generated.h"
+#include "HktMassAnimationFragments.generated.h"
 
 class UAnimToTextureDataAsset;
 
@@ -36,3 +36,4 @@ struct HKTMASS_API FHktMassNpcAnimationFragment : public FMassFragment
 	UPROPERTY()
 	bool bSwappedThisFrame = false;
 };
+

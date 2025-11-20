@@ -1,7 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassClientBubbleInfo.h"
-#include "Movement/HktMassMoveToTargetTrait.h"
+#include "HktMassMovementFragments.h"
 #include "Net/UnrealNetwork.h"
 #include "MassEntityView.h"
 #include "MassCommonFragments.h"

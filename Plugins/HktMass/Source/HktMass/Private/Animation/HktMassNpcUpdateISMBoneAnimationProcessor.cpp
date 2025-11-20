@@ -1,7 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassNpcUpdateISMBoneAnimationProcessor.h"
-#include "HktMassNpcAnimationTypes.h"
+#include "HktMassAnimationFragments.h"
 #include "MassVisualizationComponent.h"
 #include "MassRepresentationSubsystem.h"
 #include "MassEntityManager.h"

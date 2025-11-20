@@ -1,7 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktMassNpcAnimationTrait.h"
-#include "HktMassNpcAnimationTypes.h"
+#include "HktMassAnimationFragments.h"
 #include "HktMassCommonFragments.h"
 #include "MassEntityTemplateRegistry.h"
 #include "AnimToTextureDataAsset.h"
