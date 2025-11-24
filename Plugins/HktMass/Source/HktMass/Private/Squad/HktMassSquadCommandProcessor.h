@@ -3,18 +3,18 @@
 #include "CoreMinimal.h"
 #include "MassObserverProcessor.h"
 #include "MassProcessor.h"
-#include "HktMassSquadMovementProcessor.generated.h"
+#include "HktMassSquadCommandProcessor.generated.h"
 
 /**
- * 분대원의 목표 위치(MoveToLocation)를 분대장 위치로 업데이트하는 프로세서
+ * 분대원의 명령을 분대장에게 전달하는 프로세서
  */
 UCLASS(MinimalAPI)
-class UHktMassSquadMovementProcessor : public UMassProcessor
+class UHktMassSquadCommandProcessor : public UMassProcessor
 {
 	GENERATED_BODY()
 
 public:
-	UHktMassSquadMovementProcessor();
+	UHktMassSquadCommandProcessor();
 
 protected:
 	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;

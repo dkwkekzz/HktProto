@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
-#include "HktMassMovementFragments.h"
 #include "HktMassMoveToTargetTrait.generated.h"
 
 UCLASS(MinimalAPI, meta = (DisplayName = "Hkt Mass Move To Target"))

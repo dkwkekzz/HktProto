@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
-#include "HktMassAIFragments.h"
 #include "HktMassSimpleAITrait.generated.h"
 
 //----------------------------------------------------------------------//

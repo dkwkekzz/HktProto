@@ -16,15 +16,3 @@ struct FHktMassMoveToLocationFragment : public FMassFragment
 	UPROPERTY()
 	FVector TargetLocation = FVector::ZeroVector;
 };
-
-// 이동 목표 위치 Fragment
-USTRUCT()
-struct FHktMassVelocityFragment : public FMassFragment
-{
-	GENERATED_BODY()
-
-	// 이동 속도
-	UPROPERTY()
-	FVector Value = FVector::ZeroVector;
-};
-

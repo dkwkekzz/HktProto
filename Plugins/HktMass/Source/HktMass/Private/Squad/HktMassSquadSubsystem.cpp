@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HktMassSquadSubsystem.h"
+#include "HktMassSquadCommandComponent.h"
 
 void UHktMassSquadSubsystem::Initialize(FSubsystemCollectionBase & Collection)
 {
@@ -12,21 +13,21 @@ void UHktMassSquadSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-void UHktMassSquadSubsystem::RegisterSquadLeader(int32 SquadID, AHktMassSquadLeader* Leader)
+void UHktMassSquadSubsystem::RegisterSquadCommandComponent(int32 SquadID, UHktMassSquadCommandComponent* SquadComponent)
 {
-	if (Leader)
+	if (SquadComponent)
 	{
-		SquadLeaderMap.Add(SquadID, Leader);
+		SquadComponentMap.Add(SquadID, SquadComponent);
 	}
 }
 
-void UHktMassSquadSubsystem::UnregisterSquadLeader(int32 SquadID)
+void UHktMassSquadSubsystem::UnregisterSquadCommandComponent(int32 SquadID)
 {
-	SquadLeaderMap.Remove(SquadID);
+	SquadComponentMap.Remove(SquadID);
 }
 
-AHktMassSquadLeader* UHktMassSquadSubsystem::GetSquadLeader(int32 SquadID) const
+UHktMassSquadCommandComponent* UHktMassSquadSubsystem::GetSquadCommandComponent(int32 SquadID) const
 {
-	AHktMassSquadLeader* const* FoundLeader = SquadLeaderMap.Find(SquadID);
-	return FoundLeader ? *FoundLeader : nullptr;
+	UHktMassSquadCommandComponent* const* FoundComponent = SquadComponentMap.Find(SquadID);
+	return FoundComponent ? *FoundComponent : nullptr;
 }

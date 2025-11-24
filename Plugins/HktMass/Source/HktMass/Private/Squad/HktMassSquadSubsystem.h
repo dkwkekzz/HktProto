@@ -6,7 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "HktMassSquadSubsystem.generated.h"
 
-class AHktMassSquadLeader;
+class UHktMassSquadCommandComponent;
 
 UCLASS()
 class HKTMASS_API UHktMassSquadSubsystem : public UWorldSubsystem
@@ -17,14 +17,14 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	
-	// 분대장 등록/해제
-	void RegisterSquadLeader(int32 SquadID, AHktMassSquadLeader* SquadLeader);
-	void UnregisterSquadLeader(int32 SquadID);
+	// 분대 커맨드 컴포넌트 등록/해제
+	void RegisterSquadCommandComponent(int32 SquadID, UHktMassSquadCommandComponent* SquadComponent);
+	void UnregisterSquadCommandComponent(int32 SquadID);
 
-	// ID로 분대장 위치 가져오기
-	AHktMassSquadLeader* GetSquadLeader(int32 SquadID) const;
+	// ID로 분대 커맨드 컴포넌트 가져오기
+	UHktMassSquadCommandComponent* GetSquadCommandComponent(int32 SquadID) const;
 
 private:
 	UPROPERTY()
-	TMap<int32, AHktMassSquadLeader*> SquadLeaderMap;
+	TMap<int32, UHktMassSquadCommandComponent*> SquadComponentMap;
 };

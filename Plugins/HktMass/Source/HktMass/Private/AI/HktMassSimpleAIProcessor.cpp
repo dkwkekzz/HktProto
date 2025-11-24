@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HktMassSimpleAIProcessor.h"
-#include "HktMassSimpleAITrait.h"
+#include "HktMassAIFragments.h"
+#include "HktMassMovementFragments.h"
+#include "HktMassDefines.h"
 #include "MassCommonFragments.h"
 #include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
@@ -17,6 +19,7 @@ UHktMassSimpleAIFragmentInitializer::UHktMassSimpleAIFragmentInitializer()
 	Operation = EMassObservedOperation::Add;
 
 	ExecutionFlags = (int32)(EProcessorExecutionFlags::Client | EProcessorExecutionFlags::Standalone);
+	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::AI;
 }
 
 void UHktMassSimpleAIFragmentInitializer::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -29,11 +32,16 @@ void UHktMassSimpleAIFragmentInitializer::Execute(FMassEntityManager& EntityMana
 {
 	EntityQuery.ForEachEntityChunk(ExecutionContext, [](FMassExecutionContext& Context)
 	{
-		TArrayView<FHktMassMoveToLocationFragment> MoveToLocationList = Context.GetMutableFragmentView<FHktMassMoveToLocationFragment>();
+		TArrayView<FHktMassPatrolFragment> PatrolList = Context.GetMutableFragmentView<FHktMassPatrolFragment>();
+		TArrayView<FHktMassMoveToLocationFragment> MoveToList = Context.GetMutableFragmentView<FHktMassMoveToLocationFragment>();
 
 		for (FMassExecutionContext::FEntityIterator EntityIt = Context.CreateEntityIterator(); EntityIt; ++EntityIt)
 		{
-			FHktMassMoveToLocationFragment& MoveToLocationData = MoveToLocationList[EntityIt];
+			FHktMassPatrolFragment& PatrolFrag = PatrolList[EntityIt];
+			FHktMassMoveToLocationFragment& MoveToFrag = MoveToList[EntityIt];
+
+			PatrolFrag.CurrentWaypointIndex = 0;
+			MoveToFrag.TargetLocation = PatrolFrag.Waypoints[PatrolFrag.CurrentWaypointIndex];
 		}
 	});
 }
@@ -47,8 +55,7 @@ UHktMassSimpleAIProcessor::UHktMassSimpleAIProcessor()
 {
 	bAutoRegisterWithProcessingPhases = true;
 
-	// 이동(Movement)보다 먼저 실행되어야, 목표를 바꿨을 때 바로 반영되어 움직입니다.
-	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
+	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::AI;
 }
 
 void UHktMassSimpleAIProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)

@@ -10,7 +10,7 @@ UHktMassVisualizationProcessor::UHktMassVisualizationProcessor()
 	: UMassVisualizationProcessor()
 {
     // ⭐ 핵심: 자동 등록 활성화!
-    bAutoRegisterWithProcessingPhases = true;
+    bAutoRegisterWithProcessingPhases = false;
    
     // Client와 Standalone에서만 실행
     ExecutionFlags = (int32)(EProcessorExecutionFlags::Client | EProcessorExecutionFlags::Standalone);

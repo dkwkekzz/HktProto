@@ -3,11 +3,11 @@
 #include "HktMassNpcAnimationProcessor.h"
 #include "HktMassAnimationFragments.h"
 #include "HktMassCommonFragments.h"
-#include "HktMassMovementFragments.h"
+#include "HktMassPhysicsFragments.h"
+#include "HktMassDefines.h"
 #include "MassCommonFragments.h"
 #include "MassMovementFragments.h"
 #include "MassExecutionContext.h"
-#include "MassRepresentationFragments.h"
 #include "AnimToTextureDataAsset.h"
 
 // ===================================
@@ -21,6 +21,8 @@ UHktMassNpcAnimationFragmentInitializer::UHktMassNpcAnimationFragmentInitializer
 	Operation = EMassObservedOperation::Add;
 	
 	ExecutionFlags = (int32)(EProcessorExecutionFlags::Client | EProcessorExecutionFlags::Standalone);
+	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Animation;
+	ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Physics_ApplyTransform);
 }
 
 void UHktMassNpcAnimationFragmentInitializer::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -65,8 +67,8 @@ UHktMassNpcAnimationProcessor::UHktMassNpcAnimationProcessor()
 	: AnimationEntityQuery(*this)
 {
 	ExecutionFlags = (int32)(EProcessorExecutionFlags::Client | EProcessorExecutionFlags::Standalone);
-	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Tasks;
-	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::SyncWorldToMass);
+	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Animation;
+	ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Physics_ApplyTransform);
 }
 
 void UHktMassNpcAnimationProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -74,7 +76,6 @@ void UHktMassNpcAnimationProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	AnimationEntityQuery.AddRequirement<FHktMassNpcAnimationFragment>(EMassFragmentAccess::ReadWrite);
 	AnimationEntityQuery.AddRequirement<FHktMassVelocityFragment>(EMassFragmentAccess::ReadOnly);
 	AnimationEntityQuery.AddRequirement<FHktNpcStateFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
-	AnimationEntityQuery.AddRequirement<FMassRepresentationFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 }
 
 void UHktMassNpcAnimationProcessor::InitializeInternal(UObject& Owner, const TSharedRef<FMassEntityManager>& EntityManager)
@@ -97,22 +98,11 @@ void UHktMassNpcAnimationProcessor::Execute(FMassEntityManager& EntityManager, F
 		
 		// Optional fragments - just get the view and check IsEmpty()
 		TConstArrayView<FHktNpcStateFragment> StateList = Context.GetFragmentView<FHktNpcStateFragment>();
-		TConstArrayView<FMassRepresentationFragment> RepresentationList = Context.GetFragmentView<FMassRepresentationFragment>();
 		
 		for (FMassExecutionContext::FEntityIterator EntityIt = Context.CreateEntityIterator(); EntityIt; ++EntityIt)
 		{
 			FHktMassNpcAnimationFragment& AnimationData = AnimationDataList[EntityIt];
 			const FHktMassVelocityFragment& Velocity = VelocityList[EntityIt];
-			
-			// Skip if not visible (optional optimization)
-			if (!RepresentationList.IsEmpty())
-			{
-				const FMassRepresentationFragment& Representation = RepresentationList[EntityIt];
-				if (Representation.CurrentRepresentation == EMassRepresentationType::None)
-				{
-					continue;
-				}
-			}
 			
 			// Validate AnimToTexture data
 			const UAnimToTextureDataAsset* AnimToTextureData = AnimationData.AnimToTextureData.Get();
@@ -125,8 +115,7 @@ void UHktMassNpcAnimationProcessor::Execute(FMassEntityManager& EntityManager, F
 			int32 NewStateIndex = 0; // Default: Idle
 			
 			const float VelocitySizeSq = Velocity.Value.SizeSquared();
-			//const bool bIsMoving = VelocitySizeSq > MoveThresholdSq;
-			const bool bIsMoving = true;
+			const bool bIsMoving = VelocitySizeSq > MoveThresholdSq;
 			
 			if (bIsMoving)
 			{

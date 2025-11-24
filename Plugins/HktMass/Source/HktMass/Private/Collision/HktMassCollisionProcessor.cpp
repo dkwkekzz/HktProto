@@ -1,11 +1,14 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
-#include "Collision/HktMassCollisionProcessor.h"
+#include "HktMassCollisionProcessor.h"
 #include "HktMassCollisionFragments.h"
 #include "HktMassMovementFragments.h"
+#include "HktMassPhysicsFragments.h"
+#include "HktMassDefines.h"
 #include "MassCommonFragments.h"
 #include "MassEntityView.h"
 #include "MassExecutionContext.h"
+#include "Movement/HktMassMoveToTargetProcessor.h"
 
 // Helper class for simple spatial hashing
 struct FMassEntityHashGrid2D
@@ -59,17 +62,18 @@ struct FMassEntityHashGrid2D
 };
 
 UHktMassCollisionProcessor::UHktMassCollisionProcessor()
+	: EntityQuery(*this)
 {
-	// 물리 처리 이전에 속도를 수정해야 하므로 PrePhysics 혹은 Avoidance 단계가 적절
-	ProcessingPhase = EMassProcessingPhase::PrePhysics;
 	bAutoRegisterWithProcessingPhases = true;
+	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Collision;
+	ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Movement);
 }
 
 void UHktMassCollisionProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
 	// 필요한 컴포넌트 정의
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FHktMassVelocityFragment>(EMassFragmentAccess::ReadWrite); // 속도를 수정하여 밀어냄
+    EntityQuery.AddRequirement<FHktMassForceFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FHktMassCollisionFragment>(EMassFragmentAccess::ReadOnly);
 	
 	// LOD 처리를 위한 Chunk Requirement
@@ -110,7 +114,7 @@ void UHktMassCollisionProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		
 		// 데이터 뷰 가져오기
 		TConstArrayView<FTransformFragment> Transforms = LoopContext.GetFragmentView<FTransformFragment>();
-		TArrayView<FHktMassVelocityFragment> Velocities = LoopContext.GetMutableFragmentView<FHktMassVelocityFragment>();
+        TArrayView<FHktMassForceFragment> Forces = LoopContext.GetMutableFragmentView<FHktMassForceFragment>();
 		TConstArrayView<FHktMassCollisionFragment> Collisions = LoopContext.GetFragmentView<FHktMassCollisionFragment>();
 
 		// 검색 결과를 담을 배열 (재사용)
@@ -152,13 +156,26 @@ void UHktMassCollisionProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				if (DistSq > KINDA_SMALL_NUMBER && DistSq < (MinDist * MinDist))
 				{
 					float Dist = FMath::Sqrt(DistSq);
-					float Overlap = MinDist - Dist; // 겹친 정도
+                    // Soft Collision Response:
+                    // 겹친 깊이에 비례해서 힘을 주는 것이 아니라,
+                    // 역제곱 법칙(Inverse Square)이나 지수 함수를 사용하여 가까울수록 급격히 밀어내지만,
+                    // 너무 큰 힘은 피하도록 조정
+                    
+					float Overlap = MinDist - Dist; // 겹친 정도 (양수)
 					
 					// 밀어내는 방향
 					FVector PushDir = ToMe / Dist;
 					
-					// 힘 누적: 겹친 만큼 강하게, Repulsion 계수 적용
-					TotalRepulsionForce += PushDir * (Overlap * RepulsionStrength);
+					// 부드러운 밀어내기 (Soft Repulsion)
+                    // 힘 = RepulsionStrength * (Overlap / MinDist)
+                    // 겹친 비율에 따라 선형적(Linear)으로 증가시키면 튀는 현상이 덜함
+                    // 혹은 Spring Force처럼 (k * x)
+                    float NormalizedOverlap = Overlap / MinDist; // 0.0 ~ 1.0 (완전히 겹치면 1.0)
+                    
+                    // Repulsion Force Calculation
+                    // 너무 강하면 튕겨나가므로 적절히 스케일링 (예: 1000.0f)
+                    // RepulsionStrength는 Trait에서 설정
+					TotalRepulsionForce += PushDir * (NormalizedOverlap * RepulsionStrength * 20.0f); 
 					bHasCollision = true;
 				}
 			}
@@ -166,9 +183,8 @@ void UHktMassCollisionProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			// 3. 결과 적용
 			if (bHasCollision)
 			{
-				// A. 속도에 힘 적용 (F = ma -> a = F/m, 여기선 질량 1 가정)
-				// 기존 속도에 가산하여 부드럽게 밀려나게 함
-				Velocities[i].Value += TotalRepulsionForce * DeltaTime;
+				// A. 힘 누적
+                Forces[i].Value += TotalRepulsionForce;
 
 				// B. 이벤트 태그 부착 (이미 있으면 무시됨)
 				LoopContext.Defer().AddTag<FHktMassCollisionHitTag>(MyEntity);
@@ -181,4 +197,3 @@ void UHktMassCollisionProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		}
 	});
 }
-

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Engine/EngineTypes.h"
 #include "HktRtsPlayerController.generated.h"
 
 class AHktRtsUnit;
@@ -70,6 +71,18 @@ protected:
 	
 	/** 유닛 명령 입력 처리 핸들러 */
 	void HandleCommand(const FInputActionValue& Value, int32 CommandIndex);
+
+	/** BP에서 좌클릭 입력을 처리할 수 있도록 제공 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RTS|Input")
+	void BP_OnLeftClick(const FHitResult& HitResult);
+
+	/** BP에서 우클릭 입력을 처리할 수 있도록 제공 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RTS|Input")
+	void BP_OnRightClick(const FHitResult& HitResult);
+
+	/** BP에서 커맨드 입력을 처리할 수 있도록 제공 */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RTS|Input")
+	void BP_OnCommandTriggered(int32 CommandIndex, const FHitResult& HitResult);
 
 private:
 	/** 현재 선택된 유닛 배열 (클라이언트 측에서만 관리) */

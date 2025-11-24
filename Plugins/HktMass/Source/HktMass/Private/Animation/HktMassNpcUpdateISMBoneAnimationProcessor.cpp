@@ -2,6 +2,7 @@
 
 #include "HktMassNpcUpdateISMBoneAnimationProcessor.h"
 #include "HktMassAnimationFragments.h"
+#include "HktMassDefines.h"
 #include "MassVisualizationComponent.h"
 #include "MassRepresentationSubsystem.h"
 #include "MassEntityManager.h"
@@ -18,7 +19,8 @@ UHktMassNpcUpdateISMBoneAnimationProcessor::UHktMassNpcUpdateISMBoneAnimationPro
 {
 	ExecutionFlags = (int32)(EProcessorExecutionFlags::Client | EProcessorExecutionFlags::Standalone);
 
-	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Representation);
+	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Animation;
+	ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Representation);
 	bRequiresGameThreadExecution = true;
 }
 

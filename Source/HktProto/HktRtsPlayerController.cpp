@@ -37,6 +37,7 @@ void AHktRtsPlayerController::BeginPlay()
 	{
 		ConstructionComponent->RegisterComponentWithWorld(GetWorld());
 	}
+
 }
 
 void AHktRtsPlayerController::SetupInputComponent()
@@ -78,7 +79,11 @@ void AHktRtsPlayerController::HandleLeftClick(const FInputActionValue& Value)
 	// 유닛 선택 로직
 	// 1. 마우스 커서 아래로 트레이스
 	FHitResult HitResult;
-	if (GetHitResultUnderCursor(ECC_Visibility, false, HitResult))
+	const bool bHit = GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
+
+	BP_OnLeftClick(HitResult);
+
+	if (bHit)
 	{
 		AHktRtsUnit* ClickedUnit = Cast<AHktRtsUnit>(HitResult.GetActor());
 
@@ -97,19 +102,19 @@ void AHktRtsPlayerController::HandleLeftClick(const FInputActionValue& Value)
 void AHktRtsPlayerController::HandleRightClick(const FInputActionValue& Value)
 {
 	// 유닛 명령 로직
-	if (SelectedUnits.Num() > 0)
-	{
-		// 1. 마우스 커서 아래의 월드 위치 찾기 (주로 지형)
-		FHitResult HitResult;
-		if (GetHitResultUnderCursor(ECC_Visibility, false, HitResult))
-		{
-			FVector TargetLocation = HitResult.Location;
+	FHitResult HitResult;
+	const bool bHit = GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
 
-			// 2. 서버에 명령 RPC 호출
-			UnitCommandComponent->RequestMoveUnits(SelectedUnits, TargetLocation);
-			
-			UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, TargetLocation, FRotator::ZeroRotator, FVector(1.f, 1.f, 1.f), true, true, ENCPoolMethod::None, true);
-		}
+	BP_OnRightClick(HitResult);
+
+	if (SelectedUnits.Num() > 0 && bHit)
+	{
+		const FVector TargetLocation = HitResult.Location;
+
+		// 2. 서버에 명령 RPC 호출
+		UnitCommandComponent->RequestMoveUnits(SelectedUnits, TargetLocation);
+		
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, TargetLocation, FRotator::ZeroRotator, FVector(1.f, 1.f, 1.f), true, true, ENCPoolMethod::None, true);
 	}
 }
 
@@ -124,6 +129,11 @@ void AHktRtsPlayerController::HandleZoom(const FInputActionValue& Value)
 void AHktRtsPlayerController::HandleCommand(const FInputActionValue& Value, int32 CommandIndex)
 {
 	// 유닛 명령 로직
+	FHitResult HitResult;
+	GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
+
+	BP_OnCommandTriggered(CommandIndex, HitResult);
+
 	if (SelectedUnits.Num() > 0)
 	{
 		// 1. 마우스 커서 아래의 월드 위치 찾기 (주로 지형)
