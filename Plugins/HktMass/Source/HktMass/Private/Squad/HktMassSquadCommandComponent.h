@@ -23,6 +23,8 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	FVector GetSquadLocation() const { return SquadLocation; }
+
 	/** 외부에서 분대 위치를 업데이트할 때 호출 */
 	UFUNCTION(BlueprintCallable, Category = "Squad")
 	void UpdateSquadLocation(const FVector& NewLocation);

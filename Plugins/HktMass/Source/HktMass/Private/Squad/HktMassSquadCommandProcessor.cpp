@@ -49,7 +49,7 @@ void UHktMassSquadCommandProcessor::Execute(FMassEntityManager& EntityManager, F
 			if (UHktMassSquadCommandComponent* CommandComponent = SquadSubsystem->GetSquadCommandComponent(MySquadID))
 			{
 				// 컴포넌트에 캐싱된 위치를 목표로 설정
-				const FVector LeaderPos = CommandComponent->SquadLocation;
+				const FVector LeaderPos = CommandComponent->GetSquadLocation();
 				
 				// FormationOffset을 더해 겹침 방지 (실제로는 원형 진형 등을 계산)
 				// 간단하게 랜덤 오프셋이나 고정 오프셋을 적용
