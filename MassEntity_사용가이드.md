@@ -203,7 +203,7 @@ virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManage
 ### ForEachEntityChunk 파라미터 변경
 ```cpp
 // 이전
-EntityQuery.ForEachEntityChunk(EntityManager, Context, [](FMassExecutionContext& Context) {});
+EntityQuery.ForEachEntityChunk(Context, [](FMassExecutionContext& Context) {});
 
 // 현재 (UE5.5+)
 EntityQuery.ForEachEntityChunk(Context, [](FMassExecutionContext& Context) {});

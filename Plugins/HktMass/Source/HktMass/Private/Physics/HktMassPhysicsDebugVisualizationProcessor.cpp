@@ -35,7 +35,7 @@ void UHktMassPhysicsDebugVisualizationProcessor::ConfigureQueries(const TSharedR
 void UHktMassPhysicsDebugVisualizationProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
     // Draw Velocity (Green)
-	VelocityQuery.ForEachEntityChunk(EntityManager, Context, [](FMassExecutionContext& Context)
+	VelocityQuery.ForEachEntityChunk(Context, [](FMassExecutionContext& Context)
 	{
 		const TConstArrayView<FTransformFragment> Transforms = Context.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FHktMassVelocityFragment> Velocities = Context.GetFragmentView<FHktMassVelocityFragment>();
@@ -50,13 +50,14 @@ void UHktMassPhysicsDebugVisualizationProcessor::Execute(FMassEntityManager& Ent
 
             if (!Velocity.IsNearlyZero())
             {
-                DrawDebugDirectionalArrow(World, Location, Location + Velocity, 10.0f, FColor::Green, false, -1.0f, 0, 2.0f);
+				const FVector EndLocation = Location + Velocity * 0.01f;
+                DrawDebugDirectionalArrow(World, Location, EndLocation, 10.0f, FColor::Green, false, -1.0f, 0, 2.0f);
             }
 		}
 	});
 
     // Draw Force (Red)
-	ForceQuery.ForEachEntityChunk(EntityManager, Context, [](FMassExecutionContext& Context)
+	ForceQuery.ForEachEntityChunk(Context, [](FMassExecutionContext& Context)
 	{
 		const TConstArrayView<FTransformFragment> Transforms = Context.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FHktMassForceFragment> Forces = Context.GetFragmentView<FHktMassForceFragment>();
@@ -73,7 +74,8 @@ void UHktMassPhysicsDebugVisualizationProcessor::Execute(FMassEntityManager& Ent
             {
                 // Offset Force slightly in Z to separate from Velocity
                 const FVector DrawLocation = Location + FVector(0.0f, 0.0f, 5.0f);
-			    DrawDebugDirectionalArrow(World, DrawLocation, DrawLocation + Force, 10.0f, FColor::Red, false, -1.0f, 0, 2.0f);
+				const FVector DrawEndLocation = DrawLocation + Force * 0.01f;
+			    DrawDebugDirectionalArrow(World, DrawLocation, DrawEndLocation, 10.0f, FColor::Red, false, -1.0f, 0, 2.0f);
             }
 		}
 	});

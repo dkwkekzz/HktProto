@@ -8,21 +8,21 @@ UE5.5의 Mass Entity API 변경사항에 맞춰 다음 파일들을 수정했습
 **변경 사항:**
 - `ConfigureQueries()` → `ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)`
 - `UE::Mass::ProcessorGroupNames::Movement` → `FName(TEXT("Movement"))`
-- `ForEachEntityChunk(EntityManager, Context, ...)` → `ForEachEntityChunk(Context, ...)`
+- `ForEachEntityChunk(Context, ...)` → `ForEachEntityChunk(Context, ...)`
 
 ### 2. HktMassNpcAIProcessor.h/cpp
 **변경 사항:**
 - `ConfigureQueries()` → `ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)` (AI & Patrol 양쪽)
 - `UE::Mass::ProcessorGroupNames::Tasks` → `FName(TEXT("Tasks"))`
 - `UE::Mass::ProcessorGroupNames::Movement` → `FName(TEXT("Movement"))`
-- `ForEachEntityChunk(EntityManager, Context, ...)` → `ForEachEntityChunk(Context, ...)`
+- `ForEachEntityChunk(Context, ...)` → `ForEachEntityChunk(Context, ...)`
 
 ### 3. HktMassNpcVisualizationProcessor.h/cpp
 **변경 사항:**
 - `ConfigureQueries()` → `ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)`
 - `Initialize(UObject& Owner)` 메서드 제거 (final로 선언되어 override 불가)
 - `UE::Mass::ProcessorGroupNames::Representation` → `FName(TEXT("Representation"))`
-- `ForEachEntityChunk(EntityManager, Context, ...)` → `ForEachEntityChunk(Context, ...)`
+- `ForEachEntityChunk(Context, ...)` → `ForEachEntityChunk(Context, ...)`
 
 ### 4. HktMassNpcSpawner.cpp
 **변경 사항:**
@@ -58,7 +58,7 @@ virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManage
 ### 2. ForEachEntityChunk 파라미터
 ```cpp
 // UE5.3 이전
-EntityQuery.ForEachEntityChunk(EntityManager, Context, 
+EntityQuery.ForEachEntityChunk(Context, 
     [](FMassExecutionContext& Context) {});
 
 // UE5.5+

@@ -2,6 +2,7 @@
 
 #include "HktMassReplicator.h"
 #include "HktMassClientBubbleInfo.h"
+#include "HktMassPhysicsFragments.h"
 #include "HktMassCommonFragments.h"
 #include "HktMassMovementFragments.h"
 #include "MassCommonFragments.h"

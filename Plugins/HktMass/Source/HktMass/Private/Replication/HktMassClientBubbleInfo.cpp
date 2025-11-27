@@ -2,6 +2,7 @@
 
 #include "HktMassClientBubbleInfo.h"
 #include "HktMassMovementFragments.h"
+#include "HktMassPhysicsFragments.h"
 #include "Net/UnrealNetwork.h"
 #include "MassEntityView.h"
 #include "MassCommonFragments.h"

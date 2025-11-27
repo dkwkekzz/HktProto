@@ -4,10 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "MassEntityTypes.h"
 #include "HktMassSquadSubsystem.generated.h"
 
-class UHktMassSquadCommandComponent;
-
+/**
+ * 분대(Squad) 시스템을 관리하는 서브시스템.
+ * 분대 관련 공통 로직이나 유틸리티 기능을 제공합니다.
+ * (Entity Handle 기반으로 변경되어 ID 맵 관리 기능은 제거됨)
+ */
 UCLASS()
 class HKTMASS_API UHktMassSquadSubsystem : public UWorldSubsystem
 {
@@ -16,15 +20,4 @@ class HKTMASS_API UHktMassSquadSubsystem : public UWorldSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
-	
-	// 분대 커맨드 컴포넌트 등록/해제
-	void RegisterSquadCommandComponent(int32 SquadID, UHktMassSquadCommandComponent* SquadComponent);
-	void UnregisterSquadCommandComponent(int32 SquadID);
-
-	// ID로 분대 커맨드 컴포넌트 가져오기
-	UHktMassSquadCommandComponent* GetSquadCommandComponent(int32 SquadID) const;
-
-private:
-	UPROPERTY()
-	TMap<int32, UHktMassSquadCommandComponent*> SquadComponentMap;
 };

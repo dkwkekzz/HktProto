@@ -21,22 +21,17 @@ logger = logging.getLogger("hkt_mcp.tools.level")
 async def list_actors(bridge: EditorBridge, class_filter: str = "") -> str:
     """
     List all actors in the current level
-    
-    Args:
-        bridge: Editor bridge instance
-        class_filter: Optional class name to filter actors
-    
-    Returns:
-        JSON string with actor list
     """
     logger.info(f"Listing actors (filter: {class_filter})")
     
-    actors = await bridge.list_actors(class_filter)
+    data = await bridge.call_method("McpListActors", ClassFilter=class_filter)
+    
+    items = data.get("items", []) if data else []
     
     result = {
         "class_filter": class_filter,
-        "count": len(actors),
-        "actors": actors
+        "count": len(items),
+        "actors": items
     }
     
     return json.dumps(result, indent=2)
@@ -51,20 +46,16 @@ async def spawn_actor(
 ) -> str:
     """
     Spawn a new actor from a Blueprint
-    
-    Args:
-        bridge: Editor bridge instance
-        blueprint_path: Path to the Blueprint asset
-        location: (x, y, z) spawn location
-        rotation: (pitch, yaw, roll) spawn rotation
-        label: Optional actor label
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Spawning actor from {blueprint_path} at {location}")
     
-    actor_name = await bridge.spawn_actor(blueprint_path, location, rotation, label)
+    actor_name = await bridge.call_method(
+        "McpSpawnActor",
+        BlueprintPath=blueprint_path,
+        Location={"X": location[0], "Y": location[1], "Z": location[2]},
+        Rotation={"Pitch": rotation[0], "Yaw": rotation[1], "Roll": rotation[2]},
+        ActorLabel=label
+    )
     
     result = {
         "blueprint_path": blueprint_path,
@@ -72,7 +63,7 @@ async def spawn_actor(
         "rotation": {"pitch": rotation[0], "yaw": rotation[1], "roll": rotation[2]},
         "label": label,
         "success": bool(actor_name),
-        "actor_name": actor_name,
+        "actor_name": actor_name if actor_name else "",
         "message": f"Spawned actor: {actor_name}" if actor_name else "Failed to spawn actor"
     }
     
@@ -87,25 +78,23 @@ async def spawn_actor_by_class(
 ) -> str:
     """
     Spawn a new actor by native class name
-    
-    Args:
-        bridge: Editor bridge instance
-        class_name: Class name (e.g., 'PointLight', 'StaticMeshActor')
-        location: (x, y, z) spawn location
-        rotation: (pitch, yaw, roll) spawn rotation
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Spawning {class_name} at {location}")
     
-    # This would use spawn_actor_by_class in the subsystem
+    actor_name = await bridge.call_method(
+        "McpSpawnActorByClass",
+        ClassName=class_name,
+        Location={"X": location[0], "Y": location[1], "Z": location[2]},
+        Rotation={"Pitch": rotation[0], "Yaw": rotation[1], "Roll": rotation[2]}
+    )
+    
     result = {
         "class_name": class_name,
         "location": {"x": location[0], "y": location[1], "z": location[2]},
         "rotation": {"pitch": rotation[0], "yaw": rotation[1], "roll": rotation[2]},
-        "success": False,
-        "message": "spawn_actor_by_class requires direct subsystem access"
+        "success": bool(actor_name),
+        "actor_name": actor_name if actor_name else "",
+        "message": f"Spawned actor: {actor_name}" if actor_name else "Failed to spawn actor"
     }
     
     return json.dumps(result, indent=2)
@@ -120,31 +109,74 @@ async def modify_actor(
 ) -> str:
     """
     Modify an actor's transform
-    
-    Args:
-        bridge: Editor bridge instance
-        actor_name: Name or label of the actor
-        location: Optional new location {x, y, z}
-        rotation: Optional new rotation {pitch, yaw, roll}
-        scale: Optional new scale {x, y, z}
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Modifying actor {actor_name}")
     
-    loc_tuple = (location["x"], location["y"], location["z"]) if location else None
-    rot_tuple = (rotation["pitch"], rotation["yaw"], rotation["roll"]) if rotation else None
-    scale_tuple = (scale["x"], scale["y"], scale["z"]) if scale else None
+    # We need to handle partial updates by getting current transform first if needed
+    # Or simply pass what we have.
+    # To be robust with the generic generic generic C++ API that requires all 3 (Location, Rotation, Scale),
+    # we should fetch the actor first.
     
-    success = await bridge.modify_actor_transform(actor_name, loc_tuple, rot_tuple, scale_tuple)
+    # Check if we need to fetch defaults
+    if location is None or rotation is None or scale is None:
+        # Fetch actor info
+        # Optimization: We could have a specific McpGetActorTransform, but we'll use ListActors or select logic
+        # For now, let's use a simpler approach: if we don't provide it, we default to 0/1, which is bad.
+        # So we MUST fetch.
+        
+        # We'll use McpListActors with a filter on the name? No, filter is class.
+        # We can use McpGetSelectedActors if we select it first.
+        
+        await bridge.call_method("McpSelectActor", ActorName=actor_name)
+        selected_data = await bridge.call_method("McpGetSelectedActors")
+        items = selected_data.get("items", []) if selected_data else []
+        
+        current_loc = {"x": 0, "y": 0, "z": 0}
+        current_rot = {"pitch": 0, "yaw": 0, "roll": 0}
+        current_scale = {"x": 1, "y": 1, "z": 1}
+        
+        found = False
+        if items:
+            # Assume the first one is our actor
+            a = items[0]
+            if a.get("actor_name") == actor_name or a.get("actor_label") == actor_name:
+                l = a.get("location", {})
+                r = a.get("rotation", {})
+                s = a.get("scale", {})
+                current_loc = {"x": l.get("x", 0), "y": l.get("y", 0), "z": l.get("z", 0)}
+                current_rot = {"pitch": r.get("pitch", 0), "yaw": r.get("yaw", 0), "roll": r.get("roll", 0)}
+                current_scale = {"x": s.get("x", 1), "y": s.get("y", 1), "z": s.get("z", 1)}
+                found = True
+        
+        if not found:
+            return json.dumps({"success": False, "message": f"Actor {actor_name} not found"}, indent=2)
+
+        if location is None:
+            location = current_loc
+        if rotation is None:
+            rotation = current_rot
+        if scale is None:
+            scale = current_scale
+
+    # Prepare params
+    loc_param = {"X": location["x"], "Y": location["y"], "Z": location["z"]}
+    rot_param = {"Pitch": rotation["pitch"], "Yaw": rotation["yaw"], "Roll": rotation["roll"]}
+    scale_param = {"X": scale["x"], "Y": scale["y"], "Z": scale["z"]}
+    
+    success = await bridge.call_method(
+        "McpModifyActorTransform",
+        ActorName=actor_name,
+        NewLocation=loc_param,
+        NewRotation=rot_param,
+        NewScale=scale_param
+    )
     
     result = {
         "actor_name": actor_name,
         "location": location,
         "rotation": rotation,
         "scale": scale,
-        "success": success,
+        "success": success is True,
         "message": "Actor modified successfully" if success else "Failed to modify actor"
     }
     
@@ -159,25 +191,23 @@ async def modify_actor_property(
 ) -> str:
     """
     Modify an actor's property
-    
-    Args:
-        bridge: Editor bridge instance
-        actor_name: Name or label of the actor
-        property_name: Property to modify
-        new_value: New value
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Modifying actor {actor_name} property {property_name}")
     
-    # This would need to be implemented in the bridge
+    # Not implemented in C++ yet? Wait, let's check. 
+    # Subsystem has ModifyActorProperty, Library doesn't seem to have exposed it in the file provided earlier?
+    # Ah, I should check HktMcpFunctionLibrary.h again.
+    # It was not in the list I wrote.
+    # The user said "If possible, just HktMcpFunctionLibrary.h".
+    # I didn't add McpModifyActorProperty to the library in the previous step.
+    # So I cannot call it yet.
+    
     result = {
         "actor_name": actor_name,
         "property_name": property_name,
         "new_value": new_value,
         "success": False,
-        "message": "modify_actor_property not fully implemented"
+        "message": "McpModifyActorProperty not exposed in FunctionLibrary yet"
     }
     
     return json.dumps(result, indent=2)
@@ -186,21 +216,14 @@ async def modify_actor_property(
 async def delete_actor(bridge: EditorBridge, actor_name: str) -> str:
     """
     Delete an actor from the level
-    
-    Args:
-        bridge: Editor bridge instance
-        actor_name: Name or label of the actor
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Deleting actor: {actor_name}")
     
-    success = await bridge.delete_actor(actor_name)
+    success = await bridge.call_method("McpDeleteActor", ActorName=actor_name)
     
     result = {
         "actor_name": actor_name,
-        "success": success,
+        "success": success is True,
         "message": f"Deleted actor: {actor_name}" if success else "Failed to delete actor"
     }
     
@@ -210,21 +233,14 @@ async def delete_actor(bridge: EditorBridge, actor_name: str) -> str:
 async def select_actor(bridge: EditorBridge, actor_name: str) -> str:
     """
     Select an actor in the editor
-    
-    Args:
-        bridge: Editor bridge instance
-        actor_name: Name or label of the actor
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Selecting actor: {actor_name}")
     
-    success = await bridge.select_actor(actor_name)
+    success = await bridge.call_method("McpSelectActor", ActorName=actor_name)
     
     result = {
         "actor_name": actor_name,
-        "success": success,
+        "success": success is True,
         "message": f"Selected actor: {actor_name}" if success else "Failed to select actor"
     }
     
@@ -234,18 +250,14 @@ async def select_actor(bridge: EditorBridge, actor_name: str) -> str:
 async def get_selected_actors(bridge: EditorBridge) -> str:
     """
     Get currently selected actors
-    
-    Args:
-        bridge: Editor bridge instance
-    
-    Returns:
-        JSON string with selected actors
     """
-    # This would need to be implemented in the bridge
+    data = await bridge.call_method("McpGetSelectedActors")
+    
+    items = data.get("items", []) if data else []
+    
     result = {
-        "count": 0,
-        "actors": [],
-        "message": "get_selected_actors not fully implemented"
+        "count": len(items),
+        "actors": items
     }
     
     return json.dumps(result, indent=2)
@@ -258,23 +270,19 @@ async def set_viewport_camera(
 ) -> str:
     """
     Set viewport camera transform
-    
-    Args:
-        bridge: Editor bridge instance
-        location: (x, y, z) camera location
-        rotation: (pitch, yaw, roll) camera rotation
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Setting viewport camera to {location}")
     
-    success = await bridge.set_viewport_camera(location, rotation)
+    success = await bridge.call_method(
+        "McpSetViewportCamera",
+        Location={"X": location[0], "Y": location[1], "Z": location[2]},
+        Rotation={"Pitch": rotation[0], "Yaw": rotation[1], "Roll": rotation[2]}
+    )
     
     result = {
         "location": {"x": location[0], "y": location[1], "z": location[2]},
         "rotation": {"pitch": rotation[0], "yaw": rotation[1], "roll": rotation[2]},
-        "success": success,
+        "success": success is True,
         "message": "Camera moved successfully" if success else "Failed to move camera"
     }
     
@@ -284,29 +292,27 @@ async def set_viewport_camera(
 async def focus_on_actor(bridge: EditorBridge, actor_name: str) -> str:
     """
     Focus viewport camera on an actor
-    
-    Args:
-        bridge: Editor bridge instance
-        actor_name: Name or label of the actor
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Focusing on actor: {actor_name}")
     
     # First select the actor
-    select_success = await bridge.select_actor(actor_name)
+    await bridge.call_method("McpSelectActor", ActorName=actor_name)
     
-    # Then get actor location and move camera near it
-    actors = await bridge.list_actors()
-    actor = next((a for a in actors if a["actor_name"] == actor_name or a["actor_label"] == actor_name), None)
+    # Get actor location
+    selected_data = await bridge.call_method("McpGetSelectedActors")
+    items = selected_data.get("items", []) if selected_data else []
+    
+    actor = next((a for a in items if a.get("actor_name") == actor_name or a.get("actor_label") == actor_name), None)
     
     if actor:
-        loc = actor["location"]
+        loc = actor.get("location", {})
+        x, y, z = loc.get("x", 0), loc.get("y", 0), loc.get("z", 0)
+        
         # Position camera slightly offset from actor
-        camera_loc = (loc["x"] - 500, loc["y"] - 500, loc["z"] + 200)
-        camera_rot = (20, 45, 0)  # Looking down and towards
-        await bridge.set_viewport_camera(camera_loc, camera_rot)
+        camera_loc = {"X": x - 500, "Y": y - 500, "Z": z + 200}
+        camera_rot = {"Pitch": -20, "Yaw": 45, "Roll": 0}
+        
+        await bridge.call_method("McpSetViewportCamera", Location=camera_loc, Rotation=camera_rot)
     
     result = {
         "actor_name": actor_name,
@@ -315,4 +321,3 @@ async def focus_on_actor(bridge: EditorBridge, actor_name: str) -> str:
     }
     
     return json.dumps(result, indent=2)
-

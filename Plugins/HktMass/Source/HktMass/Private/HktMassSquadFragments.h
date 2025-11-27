@@ -4,21 +4,54 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "MassEntityConfigAsset.h"
 #include "HktMassSquadFragments.generated.h"
 
 /**
- * 엔티티가 소속된 분대(Squad)의 ID를 저장
+ * 분대(Squad) 자체를 나타내는 프래그먼트
+ */
+USTRUCT()
+struct FHktMassSquadFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	// 분대원 생성을 위한 설정
+	UPROPERTY(EditAnywhere, Category = "Squad")
+	TObjectPtr<UMassEntityConfigAsset> MemberConfig;
+
+	// 생성할 분대원 수
+	UPROPERTY(EditAnywhere, Category = "Squad")
+	int32 MemberCount = 0;
+
+	// 현재 분대 상태 (예: 이동, 전투, 대기)
+	UPROPERTY(EditAnywhere, Category = "Squad")
+	uint8 SquadState = 0;
+
+	// 관리 중인 분대원들의 Entity Handle 목록
+	UPROPERTY(Transient)
+	TArray<FMassEntityHandle> MemberEntities;
+};
+
+/**
+ * 엔티티가 소속된 분대(Squad) 정보를 저장
  */
 USTRUCT()
 struct FHktMassSquadMemberFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	// 소속될 분대 ID (0이면 소속 없음)
-	UPROPERTY(EditAnywhere)
-	int32 SquadID = 0;
+	// 소속된 분대 Entity Handle (직접 참조)
+	UPROPERTY(Transient)
+	FMassEntityHandle ParentSquadEntity;
 
-	// 분대장과의 상대적 오프셋 (겹침 방지용)
+	// 분대장(Squad Entity)과의 상대적 오프셋
 	UPROPERTY()
 	FVector FormationOffset = FVector::ZeroVector;
+};
+
+// 디버그 시각화용 Tag
+USTRUCT()
+struct FHktMassSquadDebugVisualizationTag : public FMassTag
+{
+    GENERATED_BODY()
 };

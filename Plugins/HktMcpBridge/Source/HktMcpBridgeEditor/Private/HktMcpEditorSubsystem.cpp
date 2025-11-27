@@ -19,6 +19,8 @@
 #include "ScopedTransaction.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "SLevelViewport.h"
+#include "EditorViewportClient.h"
 
 void UHktMcpEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -549,31 +551,31 @@ void UHktMcpEditorSubsystem::ExecuteEditorCommand(const FString& Command)
 
 bool UHktMcpEditorSubsystem::GetViewportCameraTransform(FVector& OutLocation, FRotator& OutRotation)
 {
-	//FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-	//TSharedPtr<ILevelViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
-	//
-	//if (ActiveLevelViewport.IsValid())
-	//{
-	//	FEditorViewportClient& ViewportClient = ActiveLevelViewport->GetLevelViewportClient();
-	//	OutLocation = ViewportClient.GetViewLocation();
-	//	OutRotation = ViewportClient.GetViewRotation();
-	//	return true;
-	//}
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	TSharedPtr<SLevelViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
+	
+	if (ActiveLevelViewport.IsValid())
+	{
+		FEditorViewportClient& ViewportClient = ActiveLevelViewport->GetLevelViewportClient();
+		OutLocation = ViewportClient.GetViewLocation();
+		OutRotation = ViewportClient.GetViewRotation();
+		return true;
+	}
 	return false;
 }
 
 bool UHktMcpEditorSubsystem::SetViewportCameraTransform(FVector Location, FRotator Rotation)
 {
-	//FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-	//TSharedPtr<ILevelViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
-	//
-	//if (ActiveLevelViewport.IsValid())
-	//{
-	//	FEditorViewportClient& ViewportClient = ActiveLevelViewport->GetLevelViewportClient();
-	//	ViewportClient.SetViewLocation(Location);
-	//	ViewportClient.SetViewRotation(Rotation);
-	//	return true;
-	//}
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	TSharedPtr<SLevelViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
+	
+	if (ActiveLevelViewport.IsValid())
+	{
+		FEditorViewportClient& ViewportClient = ActiveLevelViewport->GetLevelViewportClient();
+		ViewportClient.SetViewLocation(Location);
+		ViewportClient.SetViewRotation(Rotation);
+		return true;
+	}
 	return false;
 }
 
@@ -615,4 +617,3 @@ UWorld* UHktMcpEditorSubsystem::GetEditorWorld()
 	}
 	return nullptr;
 }
-

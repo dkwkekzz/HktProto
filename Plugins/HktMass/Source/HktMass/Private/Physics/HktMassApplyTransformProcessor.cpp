@@ -11,6 +11,7 @@ UHktMassApplyTransformProcessor::UHktMassApplyTransformProcessor()
 	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	ExecutionFlags = (int32)(EProcessorExecutionFlags::All);
 	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Physics_ApplyTransform;
 	ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Physics_ApplyVelocity);
 }
@@ -29,7 +30,7 @@ void UHktMassApplyTransformProcessor::Execute(FMassEntityManager& EntityManager,
 {
     const float WorldDeltaTime = Context.GetDeltaTimeSeconds();
 
-	EntityQuery.ForEachEntityChunk(EntityManager, Context, [WorldDeltaTime](FMassExecutionContext& LoopContext)
+	EntityQuery.ForEachEntityChunk(Context, [WorldDeltaTime](FMassExecutionContext& LoopContext)
 	{
 		const int32 NumEntities = LoopContext.GetNumEntities();
 		const auto& Velocities = LoopContext.GetFragmentView<FHktMassVelocityFragment>();

@@ -65,6 +65,7 @@ UHktMassCollisionProcessor::UHktMassCollisionProcessor()
 	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	ExecutionFlags = (int32)(EProcessorExecutionFlags::All);
 	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Collision;
 	ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Movement);
 }
@@ -90,7 +91,7 @@ void UHktMassCollisionProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	HashGrid.Initialize(100.0f);
 
 	// 1-A. 모든 엔티티를 순회하며 HashGrid에 등록
-	EntityQuery.ForEachEntityChunk(EntityManager, Context, [&HashGrid](FMassExecutionContext& LoopContext)
+	EntityQuery.ForEachEntityChunk(Context, [&HashGrid](FMassExecutionContext& LoopContext)
 	{
 		const int32 NumEntities = LoopContext.GetNumEntities();
 		const auto& Transforms = LoopContext.GetFragmentView<FTransformFragment>();
@@ -108,7 +109,7 @@ void UHktMassCollisionProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	// DeltaTime 가져오기
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 
-	EntityQuery.ForEachEntityChunk(EntityManager, Context, [&HashGrid, &EntityManager, DeltaTime](FMassExecutionContext& LoopContext)
+	EntityQuery.ForEachEntityChunk(Context, [&HashGrid, &EntityManager, DeltaTime](FMassExecutionContext& LoopContext)
 	{
 		const int32 NumEntities = LoopContext.GetNumEntities();
 		

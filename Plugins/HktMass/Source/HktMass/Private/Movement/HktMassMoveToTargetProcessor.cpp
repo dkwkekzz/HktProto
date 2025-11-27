@@ -14,6 +14,7 @@ UHktMassMoveToTargetProcessor::UHktMassMoveToTargetProcessor()
     : EntityQuery(*this)
 {
     bAutoRegisterWithProcessingPhases = true;
+    ExecutionFlags = (int32)(EProcessorExecutionFlags::All);
     ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Movement;
     ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::AI);
     ExecutionOrder.ExecuteAfter.Add(HktMass::ExecuteGroupNames::Squad);

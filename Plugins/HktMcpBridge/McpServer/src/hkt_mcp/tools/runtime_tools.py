@@ -20,19 +20,13 @@ logger = logging.getLogger("hkt_mcp.tools.runtime")
 async def start_pie(bridge: EditorBridge) -> str:
     """
     Start Play In Editor session
-    
-    Args:
-        bridge: Editor bridge instance
-    
-    Returns:
-        JSON string with result
     """
     logger.info("Starting PIE session")
     
-    success = await bridge.start_pie()
+    success = await bridge.call_method("McpStartPIE")
     
     result = {
-        "success": success,
+        "success": success is True,
         "message": "PIE session started" if success else "Failed to start PIE"
     }
     
@@ -42,20 +36,14 @@ async def start_pie(bridge: EditorBridge) -> str:
 async def stop_pie(bridge: EditorBridge) -> str:
     """
     Stop the current PIE session
-    
-    Args:
-        bridge: Editor bridge instance
-    
-    Returns:
-        JSON string with result
     """
     logger.info("Stopping PIE session")
     
-    success = await bridge.stop_pie()
+    success = await bridge.call_method("McpStopPIE")
     
     result = {
-        "success": success,
-        "message": "PIE session stopped" if success else "Failed to stop PIE (maybe not running?)"
+        "success": success is True,
+        "message": "PIE session stopped" if success else "Failed to stop PIE"
     }
     
     return json.dumps(result, indent=2)
@@ -64,19 +52,13 @@ async def stop_pie(bridge: EditorBridge) -> str:
 async def is_pie_running(bridge: EditorBridge) -> str:
     """
     Check if PIE is currently running
-    
-    Args:
-        bridge: Editor bridge instance
-    
-    Returns:
-        JSON string with PIE status
     """
     logger.info("Checking PIE status")
     
-    running = await bridge.is_pie_running()
+    running = await bridge.call_method("McpIsPIERunning")
     
     result = {
-        "is_running": running,
+        "is_running": running is True,
         "message": "PIE is running" if running else "PIE is not running"
     }
     
@@ -86,17 +68,10 @@ async def is_pie_running(bridge: EditorBridge) -> str:
 async def execute_console_command(bridge: EditorBridge, command: str) -> str:
     """
     Execute a console command in the editor
-    
-    Args:
-        bridge: Editor bridge instance
-        command: Console command to execute
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Executing console command: {command}")
     
-    await bridge.execute_command(command)
+    await bridge.call_method("McpExecuteCommand", Command=command)
     
     result = {
         "command": command,
@@ -110,12 +85,6 @@ async def execute_console_command(bridge: EditorBridge, command: str) -> str:
 async def get_game_state(runtime_bridge: RuntimeBridge) -> str:
     """
     Get current game state from runtime
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-    
-    Returns:
-        JSON string with game state
     """
     logger.info("Getting game state from runtime")
     
@@ -132,13 +101,6 @@ async def get_game_state(runtime_bridge: RuntimeBridge) -> str:
 async def get_runtime_actors(runtime_bridge: RuntimeBridge, class_filter: str = "") -> str:
     """
     Get actors from running game
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-        class_filter: Optional class filter
-    
-    Returns:
-        JSON string with actor list
     """
     logger.info(f"Getting runtime actors (filter: {class_filter})")
     
@@ -157,12 +119,6 @@ async def get_runtime_actors(runtime_bridge: RuntimeBridge, class_filter: str = 
 async def get_player_info(runtime_bridge: RuntimeBridge) -> str:
     """
     Get player information from running game
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-    
-    Returns:
-        JSON string with player info
     """
     logger.info("Getting player info from runtime")
     
@@ -184,15 +140,6 @@ async def teleport_player(
 ) -> str:
     """
     Teleport player to location in running game
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-        x: X coordinate
-        y: Y coordinate
-        z: Z coordinate
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Teleporting player to ({x}, {y}, {z})")
     
@@ -210,13 +157,6 @@ async def teleport_player(
 async def runtime_command(runtime_bridge: RuntimeBridge, command: str) -> str:
     """
     Execute console command in running game
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-        command: Console command
-    
-    Returns:
-        JSON string with result
     """
     logger.info(f"Executing runtime command: {command}")
     
@@ -232,12 +172,6 @@ async def runtime_command(runtime_bridge: RuntimeBridge, command: str) -> str:
 async def connect_runtime(runtime_bridge: RuntimeBridge) -> str:
     """
     Connect to running game instance
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-    
-    Returns:
-        JSON string with connection status
     """
     logger.info(f"Connecting to runtime at {runtime_bridge.url}")
     
@@ -255,12 +189,6 @@ async def connect_runtime(runtime_bridge: RuntimeBridge) -> str:
 async def disconnect_runtime(runtime_bridge: RuntimeBridge) -> str:
     """
     Disconnect from running game instance
-    
-    Args:
-        runtime_bridge: Runtime bridge instance
-    
-    Returns:
-        JSON string with status
     """
     logger.info("Disconnecting from runtime")
     
@@ -272,4 +200,3 @@ async def disconnect_runtime(runtime_bridge: RuntimeBridge) -> str:
     }
     
     return json.dumps(result, indent=2)
-

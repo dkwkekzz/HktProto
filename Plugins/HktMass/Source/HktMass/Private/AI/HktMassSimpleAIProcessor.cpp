@@ -18,7 +18,7 @@ UHktMassSimpleAIFragmentInitializer::UHktMassSimpleAIFragmentInitializer()
 	ObservedType = FHktMassPatrolFragment::StaticStruct();
 	Operation = EMassObservedOperation::Add;
 
-	ExecutionFlags = (int32)(EProcessorExecutionFlags::Client | EProcessorExecutionFlags::Standalone);
+	ExecutionFlags = (int32)(EProcessorExecutionFlags::Server | EProcessorExecutionFlags::Standalone);
 	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::AI;
 }
 
@@ -26,6 +26,7 @@ void UHktMassSimpleAIFragmentInitializer::ConfigureQueries(const TSharedRef<FMas
 {
 	EntityQuery.AddRequirement<FHktMassPatrolFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FHktMassMoveToLocationFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 }
 
 void UHktMassSimpleAIFragmentInitializer::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext)
@@ -34,14 +35,17 @@ void UHktMassSimpleAIFragmentInitializer::Execute(FMassEntityManager& EntityMana
 	{
 		TArrayView<FHktMassPatrolFragment> PatrolList = Context.GetMutableFragmentView<FHktMassPatrolFragment>();
 		TArrayView<FHktMassMoveToLocationFragment> MoveToList = Context.GetMutableFragmentView<FHktMassMoveToLocationFragment>();
+		TArrayView<FTransformFragment> TransformList = Context.GetMutableFragmentView<FTransformFragment>();
 
 		for (FMassExecutionContext::FEntityIterator EntityIt = Context.CreateEntityIterator(); EntityIt; ++EntityIt)
 		{
 			FHktMassPatrolFragment& PatrolFrag = PatrolList[EntityIt];
 			FHktMassMoveToLocationFragment& MoveToFrag = MoveToList[EntityIt];
+			FTransformFragment& TransformFrag = TransformList[EntityIt];
 
 			PatrolFrag.CurrentWaypointIndex = 0;
 			MoveToFrag.TargetLocation = PatrolFrag.Waypoints[PatrolFrag.CurrentWaypointIndex];
+			TransformFrag.GetMutableTransform().SetLocation(MoveToFrag.TargetLocation);
 		}
 	});
 }
