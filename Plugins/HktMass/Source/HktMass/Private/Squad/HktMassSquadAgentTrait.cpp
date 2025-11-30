@@ -12,6 +12,7 @@ void UHktMassSquadAgentTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	FHktMassSquadFragment& SquadFrag = BuildContext.AddFragment_GetRef<FHktMassSquadFragment>();
 	SquadFrag.MemberCount = MemberCount;
 	SquadFrag.MemberConfig = MemberConfig;
+	SquadFrag.SquadMaxRadius = SquadMaxRadius;
 
 	BuildContext.AddTag<FHktMassSquadDebugVisualizationTag>();
 

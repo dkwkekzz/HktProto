@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "HktMassSquadCommandProcessor.h"
+#include "HktMassSquadMoveToLeaderProcessor.h"
 #include "HktMassSquadFragments.h"
 #include "HktMassDefines.h"
 #include "HktMassMovementFragments.h"
@@ -9,7 +9,7 @@
 #include "MassCommonTypes.h"
 #include "Engine/World.h"
 
-UHktMassSquadCommandProcessor::UHktMassSquadCommandProcessor()
+UHktMassSquadMoveToLeaderProcessor::UHktMassSquadMoveToLeaderProcessor()
 	: EntityQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
@@ -18,15 +18,14 @@ UHktMassSquadCommandProcessor::UHktMassSquadCommandProcessor()
 	ExecutionOrder.ExecuteInGroup = HktMass::ExecuteGroupNames::Squad;
 }
 
-void UHktMassSquadCommandProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+void UHktMassSquadMoveToLeaderProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
-	// 1. 분대 정보 읽기
 	EntityQuery.AddRequirement<FHktMassSquadMemberFragment>(EMassFragmentAccess::ReadOnly);
-	// 2. 목표 위치 쓰기
 	EntityQuery.AddRequirement<FHktMassMoveToLocationFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 }
 
-void UHktMassSquadCommandProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext)
+void UHktMassSquadMoveToLeaderProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext)
 {
 	// Subsystem 의존성 제거
 	
@@ -51,6 +50,13 @@ void UHktMassSquadCommandProcessor::Execute(FMassEntityManager& EntityManager, F
 					FVector TargetPos = LeaderPos + SquadMembers[i].FormationOffset;
 
 					MoveToFragments[i].TargetLocation = TargetPos;
+
+					FTransform& MemberTransform = TransFragments[i].GetMutableTransform();
+					const float Distance = (TargetPos - MemberTransform.GetLocation()).Size();
+					if (Distance > SquadMembers[i].MaxOffset)
+					{
+						MemberTransform.SetLocation(TargetPos);
+					}
 				}
 			}
 		}

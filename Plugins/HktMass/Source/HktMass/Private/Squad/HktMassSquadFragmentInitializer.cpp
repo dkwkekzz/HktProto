@@ -25,9 +25,6 @@ void UHktMassSquadFragmentInitializer::ConfigureQueries(const TSharedRef<FMassEn
 
 void UHktMassSquadFragmentInitializer::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	UWorld* World = EntityManager.GetWorld();
-	if (!World) return;
-
 	EntityQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& ChunkContext)
 	{
 		const TArrayView<FHktMassSquadFragment> SquadFragments = ChunkContext.GetMutableFragmentView<FHktMassSquadFragment>();
@@ -43,7 +40,7 @@ void UHktMassSquadFragmentInitializer::Execute(FMassEntityManager& EntityManager
 			{
 				// Entity 스폰은 즉시 실행하지 않고 Deferred Command로 처리
 				ChunkContext.Defer().PushCommand<FMassDeferredCreateCommand>(
-					[SquadEntity, MemberConfig = SquadFrag.MemberConfig, MemberCount = SquadFrag.MemberCount, SquadTransform](FMassEntityManager& Manager)
+					[SquadEntity, MemberConfig = SquadFrag.MemberConfig, MemberCount = SquadFrag.MemberCount, SquadMaxRadius = SquadFrag.SquadMaxRadius, SquadTransform](FMassEntityManager& Manager)
 					{
 						UWorld* World = Manager.GetWorld();
 						if (!World) return;
@@ -78,6 +75,7 @@ void UHktMassSquadFragmentInitializer::Execute(FMassEntityManager& EntityManager
 								// SquadEntity Handle 직접 저장
 								MemberFrag->ParentSquadEntity = SquadEntity;
 								MemberFrag->FormationOffset = Offset;
+								MemberFrag->MaxOffset = SquadMaxRadius;
 							}
 
 							// 초기 위치 설정

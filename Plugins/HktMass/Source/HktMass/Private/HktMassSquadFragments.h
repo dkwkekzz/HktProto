@@ -27,6 +27,10 @@ struct FHktMassSquadFragment : public FMassFragment
 	UPROPERTY(EditAnywhere, Category = "Squad")
 	uint8 SquadState = 0;
 
+	// 분대 최대 반경
+	UPROPERTY(EditAnywhere, Category = "Squad")
+	float SquadMaxRadius = 0.f;
+
 	// 관리 중인 분대원들의 Entity Handle 목록
 	UPROPERTY(Transient)
 	TArray<FMassEntityHandle> MemberEntities;
@@ -47,6 +51,10 @@ struct FHktMassSquadMemberFragment : public FMassFragment
 	// 분대장(Squad Entity)과의 상대적 오프셋
 	UPROPERTY()
 	FVector FormationOffset = FVector::ZeroVector;
+
+	// 분대장(Squad Entity)과의 최대 오프셋
+	UPROPERTY()
+	float MaxOffset = 0.f;
 };
 
 // 디버그 시각화용 Tag

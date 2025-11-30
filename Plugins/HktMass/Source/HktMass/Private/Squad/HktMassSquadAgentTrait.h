@@ -23,6 +23,9 @@ protected:
 	int32 MemberCount = 3;
 
 	UPROPERTY(EditAnywhere, Category = "Squad")
+	float SquadMaxRadius = 500.f;
+
+	UPROPERTY(EditAnywhere, Category = "Squad")
 	TObjectPtr<class UMassEntityConfigAsset> MemberConfig;
 };
 
