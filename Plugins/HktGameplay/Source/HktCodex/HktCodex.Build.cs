@@ -1,0 +1,45 @@
+// Copyright Hkt Studios, Inc. All Rights Reserved.
+
+using UnrealBuildTool;
+
+public class HktCodex : ModuleRules
+{
+	public HktCodex(ReadOnlyTargetRules Target) : base(Target)
+	{
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		
+		PublicIncludePaths.AddRange(
+			new string[] {
+			}
+		);
+				
+		PrivateIncludePaths.AddRange(
+			new string[] {
+			}
+		);
+			
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Core",
+				"CoreUObject",
+				"Engine",
+				"GameplayTags",
+				"HktService" // For HktServiceTypes and shared types
+			}
+		);
+			
+		PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
+			}
+		);
+		
+		DynamicallyLoadedModuleNames.AddRange(
+			new string[]
+			{
+			}
+		);
+	}
+}
+

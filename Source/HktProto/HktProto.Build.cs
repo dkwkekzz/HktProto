@@ -23,7 +23,7 @@ public class HktProto : ModuleRules
             "GameplayTags",
             "GameplayTasks",
             // HktMass 플러그인 (Mass Entity 시스템)
-            "HktMass",
+            "HktMass"
         });
     }
 }
