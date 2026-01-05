@@ -15,11 +15,15 @@
 
 /** 주체(Subject)에 대한 문맥 정보를 제공합니다. */
 UINTERFACE(MinimalAPI, BlueprintType)
-class UHktSubjectContext : public UInterface { GENERATED_BODY() };
+class UHktSubjectContext : public UInterface 
+{
+    GENERATED_BODY() 
+};
 
-class HKTINTENT_API IHktSubjectContext
+class IHktSubjectContext
 {
     GENERATED_BODY()
+
 public:
     /** 이 문맥이 가리키는 실제 유닛들을 반환합니다. */
     virtual TArray<FHktUnitHandle> ResolveSubjects() const = 0;
@@ -34,9 +38,12 @@ public:
 
 /** 명령(Command)에 대한 문맥 정보를 제공합니다. */
 UINTERFACE(MinimalAPI, BlueprintType)
-class UHktCommandContext : public UInterface { GENERATED_BODY() };
+class UHktCommandContext : public UInterface 
+{ 
+    GENERATED_BODY() 
+};
 
-class HKTINTENT_API IHktCommandContext
+class IHktCommandContext
 {
     GENERATED_BODY()
 public:
@@ -52,9 +59,12 @@ public:
 
 /** 대상(Target)에 대한 문맥 정보를 제공합니다. */
 UINTERFACE(MinimalAPI, BlueprintType)
-class UHktTargetContext : public UInterface { GENERATED_BODY() };
+class UHktTargetContext : public UInterface 
+{ 
+    GENERATED_BODY() 
+};
 
-class HKTINTENT_API IHktTargetContext
+class IHktTargetContext
 {
     GENERATED_BODY()
 public:
@@ -82,7 +92,7 @@ public:
 /** * 클릭(HitResult)을 통해 주체를 결정하는 컨텍스트 
  */
 UCLASS()
-class HKTINTENT_API UHktSubjectContext_ByClick : public UObject, public IHktSubjectContext
+class UHktSubjectContext_ByClick : public UObject, public IHktSubjectContext
 {
     GENERATED_BODY()
 
@@ -104,7 +114,7 @@ private:
  * 생성 시점에 Subject와 SlotIndex를 받아 실제 ActionDataAsset을 미리 조회(Caching)합니다.
  */
 UCLASS()
-class HKTINTENT_API UHktCommandContext_BySlot : public UObject, public IHktCommandContext
+class UHktCommandContext_BySlot : public UObject, public IHktCommandContext
 {
     GENERATED_BODY()
 
@@ -129,7 +139,7 @@ private:
  * Initialize 시점에 HitResult를 분석하여 UnitHandle과 Location을 미리 캐싱합니다.
  */
 UCLASS()
-class HKTINTENT_API UHktTargetContext_ByClick : public UObject, public IHktTargetContext
+class UHktTargetContext_ByClick : public UObject, public IHktTargetContext
 {
     GENERATED_BODY()
 

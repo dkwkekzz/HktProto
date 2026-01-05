@@ -1,45 +1,41 @@
 #include "HktIntentComponent.h"
+#include "HktIntentGameMode.h"
+#include "HktIntentSubsystem.h"
+#include "Objects/HktInputContexts.h" // Interface definitions
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
-#include "HktIntentGameState.h"
-#include "HktActionDataAsset.h"
-#include "HktIntentSubsystem.h"
-
-// 인터페이스 헤더 포함 필요 (ResolveSubjects 반환 타입 확인용)
-#include "HktInterfaces.h" 
-
-static const int32 SERVER_INTENT_DELAY_FRAMES = 5;
 
 // ============================================================================
 // [FAS Item Logic]
 // ============================================================================
 
-void FHktIntentItem::PostReplicatedAdd(const FHktIntentContainer& InArraySerializer)
+void FHktEventItem::PostReplicatedAdd(const FHktEventContainer& InArraySerializer)
 {
-    NotifySubsystem(InArraySerializer, EIntentChangeType::Added);
-}
-
-void FHktIntentItem::PostReplicatedChange(const FHktIntentContainer& InArraySerializer)
-{
-    NotifySubsystem(InArraySerializer, EIntentChangeType::Updated);
-}
-
-void FHktIntentItem::PreReplicatedRemove(const FHktIntentContainer& InArraySerializer)
-{
-    NotifySubsystem(InArraySerializer, EIntentChangeType::Removed);
-}
-
-void FHktIntentItem::NotifySubsystem(const FHktIntentContainer& InArraySerializer, EIntentChangeType ChangeType) const
-{
-    if (InArraySerializer.OwnerComponent)
+    if (InArraySerializer.OwnerSubsystem)
     {
-        InArraySerializer.OwnerComponent->ReportIntentChangeToSubsystem(Event, ChangeType);
+        InArraySerializer.OwnerSubsystem->AddIntentEvent(InArraySerializer.ChannelId, Event);
     }
 }
 
-FHktIntentItem& FHktIntentContainer::AddOrUpdateItem(const FHktIntentItem& Item)
+void FHktEventItem::PostReplicatedChange(const FHktEventContainer& InArraySerializer)
 {
-    FHktIntentItem* ExistingItem = Items.FindByPredicate([&](const FHktIntentItem& Existing)
+    if (InArraySerializer.OwnerSubsystem)
+    {
+        InArraySerializer.OwnerSubsystem->UpdateIntentEvent(InArraySerializer.ChannelId, Event);
+    }
+}
+
+void FHktEventItem::PreReplicatedRemove(const FHktEventContainer& InArraySerializer)
+{
+    if (InArraySerializer.OwnerSubsystem)
+    {
+        InArraySerializer.OwnerSubsystem->RemoveIntentEvent(InArraySerializer.ChannelId, Event);
+    }
+}
+
+FHktEventItem& FHktEventContainer::AddOrUpdateItem(const FHktEventItem& Item)
+{
+    FHktEventItem* ExistingItem = Items.FindByPredicate([&](const FHktEventItem& Existing)
     {
         return Existing.Event.EventId == Item.Event.EventId;
     });
@@ -48,18 +44,20 @@ FHktIntentItem& FHktIntentContainer::AddOrUpdateItem(const FHktIntentItem& Item)
     {
         *ExistingItem = Item;
         MarkItemDirty(*ExistingItem);
-        if (OwnerComponent)
+        // 서버에서 직접 Subsystem에 동기화
+        if (OwnerSubsystem)
         {
-            OwnerComponent->ReportIntentChangeToSubsystem(ExistingItem->Event, EIntentChangeType::Updated);
+            OwnerSubsystem->UpdateIntentEvent(ChannelId, ExistingItem->Event);
         }
         return *ExistingItem;
     }
 
-    FHktIntentItem& NewItem = Items.Add_GetRef(Item);
+    FHktEventItem& NewItem = Items.Add_GetRef(Item);
     MarkItemDirty(NewItem);
-    if (OwnerComponent)
+    // 서버에서 직접 Subsystem에 동기화
+    if (OwnerSubsystem)
     {
-        OwnerComponent->ReportIntentChangeToSubsystem(NewItem.Event, EIntentChangeType::Added);
+        OwnerSubsystem->AddIntentEvent(ChannelId, NewItem.Event);
     }
     return NewItem;
 }
@@ -71,45 +69,45 @@ FHktIntentItem& FHktIntentContainer::AddOrUpdateItem(const FHktIntentItem& Item)
 UHktIntentComponent::UHktIntentComponent()
 {
     SetIsReplicatedByDefault(true);
-    IntentBuffer.OwnerComponent = this;
     LocalIntentSequence = 0;
-}
-
-void UHktIntentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-    DOREPLIFETIME_CONDITION(UHktIntentComponent, IntentBuffer, COND_None);
 }
 
 void UHktIntentComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    // Subsystem 캐싱
+    EventBuffer.OwnerSubsystem = UHktIntentSubsystem::Get(GetWorld());
+	
     if (UWorld* World = GetWorld())
     {
-        CachedSubsystem = World->GetSubsystem<UHktIntentSubsystem>();
+        // ChannelId 설정 (GameMode에서 가져옴)
+        if (AHktIntentGameMode* GameMode = World->GetAuthGameMode<AHktIntentGameMode>())
+        {
+            EventBuffer.ChannelId = GameMode->GetChannelId();
+        }
     }
+}
+
+void UHktIntentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME_CONDITION(UHktIntentComponent, EventBuffer, COND_None);
 }
 
 void UHktIntentComponent::SubmitIntent(const TScriptInterface<IHktSubjectContext> Subject, 
                                        const TScriptInterface<IHktCommandContext> Command, 
                                        const TScriptInterface<IHktTargetContext> Target)
 {
-    if (!Subject || !Command) 
+    if (!Subject || !Subject->IsValid()) 
 	{
-		UE_LOG(LogTemp, Error, TEXT("Subject, Command, or Target is not valid"));
+		UE_LOG(LogTemp, Error, TEXT("Subject is not valid"));
 		return;
 	}
 
-    if (!Subject->IsValid() || !Command->IsValid()) 
+    if (!Command || !Command->IsValid()) 
 	{
-		UE_LOG(LogTemp, Error, TEXT("Subject, Command, or Target is not valid"));
-		return;
-	}
-
-    UHktActionDataAsset* Action = Command->ResolveAction();
-    if (!Action) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("Action is not valid"));
+		UE_LOG(LogTemp, Error, TEXT("Command is not valid"));
 		return;
 	}
 
@@ -122,8 +120,8 @@ void UHktIntentComponent::SubmitIntent(const TScriptInterface<IHktSubjectContext
 	
 	FHktIntentEvent NewEvent;
 	NewEvent.EventId = ++LocalIntentSequence;
-	NewEvent.Subjects = Subject->ResolveSubjects();
-	NewEvent.EventTag = Action->EventTag;
+	NewEvent.Subject = Subject->ResolvePrimarySubject();
+	NewEvent.EventTag = Command->ResolveEventTag();
 	if (Target)
 	{
 		NewEvent.Target = Target->GetTargetUnit();
@@ -133,35 +131,19 @@ void UHktIntentComponent::SubmitIntent(const TScriptInterface<IHktSubjectContext
 	Server_ReceiveEvent(NewEvent);
 }
 
-void UHktIntentComponent::ReportIntentChangeToSubsystem(const FHktIntentEvent& Event, EIntentChangeType ChangeType)
-{
-    UHktIntentSubsystem* Subsystem = CachedSubsystem.Get();
-    if (!Subsystem)
-    {
-        if (UWorld* World = GetWorld())
-        {
-            Subsystem = World->GetSubsystem<UHktIntentSubsystem>();
-            CachedSubsystem = Subsystem;
-        }
-    }
-
-    if (Subsystem)
-    {
-        // Event 내부에 Subjects(핸들)가 포함되어 있으므로, Owner Actor를 넘길 필요 없이 Event만 전달
-        Subsystem->ProcessIntentChange(Event, ChangeType);
-    }
-}
-
 void UHktIntentComponent::Server_ReceiveEvent_Implementation(FHktIntentEvent PendingEvent)
 {
-    int32 CurrentServerFrame = 0;
-    if (const AHktIntentGameState* GS = GetWorld()->GetGameState<AHktIntentGameState>())
+    // GameMode에서 FrameNumber와 ChannelId 설정
+    if (UWorld* World = GetWorld())
     {
-        CurrentServerFrame = GS->GetCurrentFrame();
+        if (AHktIntentGameMode* GameMode = World->GetAuthGameMode<AHktIntentGameMode>())
+        {
+            PendingEvent.FrameNumber = GameMode->GetServerFrame();
+        }
     }
-
-    PendingEvent.FrameNumber = CurrentServerFrame + SERVER_INTENT_DELAY_FRAMES;
-    IntentBuffer.AddOrUpdateItem(FHktIntentItem(PendingEvent));
+    
+    // 버퍼에 추가 (자동으로 클라이언트에 복제됨)
+    EventBuffer.AddOrUpdateItem(FHktEventItem(PendingEvent));
 }
 
 bool UHktIntentComponent::Server_ReceiveEvent_Validate(FHktIntentEvent PendingEvent)

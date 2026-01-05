@@ -20,44 +20,6 @@ void UHktCodexSubsystem::Deinitialize()
     Super::Deinitialize();
 }
 
-void UHktCodexSubsystem::BuildAssetIndex()
-{
-    if (bIsIndexBuilt)
-    {
-        return;
-    }
-
-    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-
-    TArray<FAssetData> AssetDataList;
-    FTopLevelAssetPath ClassPath = FT_UHktActionDataAsset::StaticClass()->GetClassPathName();
-    AssetRegistry.GetAssetsByClass(ClassPath, AssetDataList, true);
-
-    const FName TagName = TEXT("ActionTag");
-
-    for (const FAssetData& Data : AssetDataList)
-    {
-        if (Data.TagsAndValues.Contains(TagName))
-        {
-            FString TagString = Data.TagsAndValues[TagName];
-            FGameplayTag ActionTag = FGameplayTag::RequestGameplayTag(FName(*TagString));
-
-            if (ActionTag.IsValid())
-            {
-                // TMap 사용으로 중복된 키가 있을 경우 덮어쓰거나, 로그를 남겨 중복을 경고할 수 있습니다.
-                if (AssetIndex.Contains(ActionTag))
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("Duplicate Asset Tag Detected: %s. Overwriting."), *ActionTag.ToString());
-                }
-                AssetIndex.Add(ActionTag, Data.ToSoftObjectPath());
-            }
-        }
-    }
-
-    bIsIndexBuilt = true;
-}
-
 void UHktCodexSubsystem::QueryDataAssetByTag(const FGameplayTag& InTag, FOnQueryDataComplete Callback) const
 {
     // 1. 유효하지 않은 태그 처리
@@ -96,4 +58,49 @@ void UHktCodexSubsystem::QueryDataAssetByTag(const FGameplayTag& InTag, FOnQuery
             Callback.ExecuteIfBound(LoadedAsset);
         })
     );
+}
+
+void UHktCodexSubsystem::BuildAssetIndex()
+{
+    if (bIsIndexBuilt)
+    {
+        return;
+    }
+
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    TArray<FAssetData> AssetDataList;
+    
+    // 특정 파생 클래스가 아닌, 모든 UDataAsset 기반 에셋을 대상으로 검색합니다.
+    // 이렇게 하면 HktActionDataAsset 뿐만 아니라 다른 타입의 DataAsset도 태그만 있다면 자동으로 인덱싱됩니다.
+    FTopLevelAssetPath ClassPath = UDataAsset::StaticClass()->GetClassPathName();
+    AssetRegistry.GetAssetsByClass(ClassPath, AssetDataList, true);
+
+    const FName TagName = TEXT("ActionTag");
+
+    for (const FAssetData& Data : AssetDataList)
+    {
+        // 에셋 레지스트리에 'ActionTag' 메타데이터가 있는지 확인
+        if (Data.TagsAndValues.Contains(TagName))
+        {
+            FString TagString = Data.TagsAndValues[TagName];
+            FGameplayTag ActionTag = FGameplayTag::RequestGameplayTag(FName(*TagString));
+
+            if (ActionTag.IsValid())
+            {
+                // 중복 태그 감지 및 처리
+                if (AssetIndex.Contains(ActionTag))
+                {
+                    // 어떤 에셋이 덮어쓰여지는지 로그로 명확히 남겨 디버깅을 돕습니다.
+                    UE_LOG(LogTemp, Warning, TEXT("UHktCodexSubsystem: Duplicate Tag [%s] detected. Asset [%s] will overwrite existing entry."), 
+                        *ActionTag.ToString(), 
+                        *Data.AssetName.ToString());
+                }
+                AssetIndex.Add(ActionTag, Data.ToSoftObjectPath());
+            }
+        }
+    }
+
+    bIsIndexBuilt = true;
 }

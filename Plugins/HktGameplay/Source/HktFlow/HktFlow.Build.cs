@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class HktSimulation : ModuleRules
+public class HktFlow : ModuleRules
 {
-	public HktSimulation(ReadOnlyTargetRules Target) : base(Target)
+	public HktBehavior(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -23,21 +23,15 @@ public class HktSimulation : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"Engine",
-				"MassEntity",
-				"MassCommon",
-				"MassSpawner",
-				"GameplayTags",
-				"StructUtils",
-				"HktIntent",   // Read-only dependency on Intent module
-				"HktService",  // Access to service providers
-				"HktFlow"  // Access to job types and provider
+				"Engine"
 			}
 		);
 			
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"HktService",
+				"HktIntent"
 			}
 		);
 		

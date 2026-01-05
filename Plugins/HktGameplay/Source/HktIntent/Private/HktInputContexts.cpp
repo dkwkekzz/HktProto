@@ -16,29 +16,23 @@ void UHktSubjectContext_ByClick::Initialize(const FHitResult& InHit)
 
 TArray<FHktUnitHandle> UHktSubjectContext_ByClick::ResolveSubjects() const
 {
-    TArray<FHktUnitHandle> OutSubjects;
-
-    if (!CachedHit.bBlockingHit)
-    {
-        return OutSubjects;
-    }
-
-    // UObject의 GetWorld()를 사용하여 월드 컨텍스트 획득 (Outer가 PlayerController라고 가정)
-    if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
-    {
-        if (const auto& Provider = Service->GetSelectionProvider())
-        {
-            Provider->QuerySelectUnits(CachedHit, OutSubjects);
-        }
-    }
-
+    TArray<FHktUnitHandle> OutSubjects{ ResolvePrimarySubject() };
     return OutSubjects;
 }
 
 FHktUnitHandle UHktSubjectContext_ByClick::ResolvePrimarySubject() const
 {
-    TArray<FHktUnitHandle> Subjects = ResolveSubjects();
-    return Subjects.Num() > 0 ? Subjects[0] : FHktUnitHandle();
+    FHktUnitHandle Subject;
+
+    if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
+    {
+        if (const auto& Provider = Service->GetSelectionProvider())
+        {
+            Provider->QuerySelectUnit(CachedHit, Subject);
+        }
+    }
+
+    return Subject;
 }
 
 //-----------------------------------------------------------------------------
@@ -111,20 +105,15 @@ void UHktTargetContext_ByClick::Initialize(const FHitResult& InHit)
     CachedLocation = InHit.Location;
     CachedUnitHandle = FHktUnitHandle(); // Invalid로 초기화
 
-    if (!InHit.bBlockingHit)
-    {
-        return;
-    }
-    
     if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
     {
         if (const auto& Provider = Service->GetSelectionProvider())
         {
             // 단일 대상 쿼리
-            TArray<FHktUnitHandle> HitUnits;
-            if (Provider->QuerySelectUnits(InHit, HitUnits) && HitUnits.Num() > 0)
+            FHktUnitHandle HitUnitHandle;
+            if (Provider->QuerySelectUnit(InHit, HitUnitHandle))
             {
-                CachedUnitHandle = HitUnits[0];
+                CachedUnitHandle = HitUnitHandle;
                 
                 // 대상이 유닛이라면, 위치 정보를 유닛의 중심점이나 소켓 위치로 보정할 수 있음
                 // 예: CachedLocation = Provider->GetUnitLocation(CachedUnitHandle);

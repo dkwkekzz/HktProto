@@ -1,10 +1,11 @@
-#pragma once
+﻿#pragma once
 
-#include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "HktServiceInterfaces.h"
+#include "IHktCodexProvider.h"
 #include "IHktSelectionProvider.h"
 #include "IHktIntentEventProvider.h"
-#include "IHktCodexProvider.h"
+#include "IHktJobProvider.h"
 #include "HktServiceSubsystem.generated.h"
 
 /**
@@ -33,10 +34,14 @@ public:
 	void RegisterCodexProvider(TScriptInterface<IHktCodexProvider> Provider);
 	void UnregisterCodexProvider(TScriptInterface<IHktCodexProvider> Provider);
 
+	void RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
+	void UnregisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
+
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
 	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider() const;
 	TScriptInterface<IHktCodexProvider> GetCodexProvider() const;
+	TScriptInterface<IHktJobProvider> GetJobProvider() const;
 
 private:
 	UPROPERTY()
@@ -47,4 +52,7 @@ private:
 
 	UPROPERTY()
 	TScriptInterface<IHktCodexProvider> CodexProvider;
+
+	UPROPERTY()
+	TScriptInterface<IHktJobProvider> JobProvider;
 };

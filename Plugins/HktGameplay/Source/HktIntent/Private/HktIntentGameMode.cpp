@@ -8,6 +8,7 @@ AHktIntentGameMode::AHktIntentGameMode()
 	
 	AbsoluteFrame = 0;
 	FrameAccumulator = 0.0f;
+	ChannelId = 1; // Default channel
 }
 
 void AHktIntentGameMode::Tick(float DeltaSeconds)

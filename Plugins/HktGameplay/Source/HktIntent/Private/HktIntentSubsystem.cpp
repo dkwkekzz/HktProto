@@ -1,17 +1,13 @@
 #include "HktIntentSubsystem.h"
 #include "HktIntentComponent.h"
-#include "HktIntentEffectMappingAsset.h"
 #include "HktServiceSubsystem.h"
-#include "Engine/AssetManager.h"
-
-static const TArray<FHktIntentEffect> EmptyEffects;
 
 void UHktIntentSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     
-    // 매핑 어셋 로드
-    LoadEffectMappingAssets();
+    ChannelMap.Reset();
+    CurrentServerFrame = 0;
     
     if (UHktServiceSubsystem* Service = Collection.InitializeDependency<UHktServiceSubsystem>())
     {
@@ -21,9 +17,7 @@ void UHktIntentSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UHktIntentSubsystem::Deinitialize()
 {
-    OwnerEffectMap.Empty();
-    EffectMappingRegistry.Empty();
-    CachedEffectOwners.Empty();
+    ChannelMap.Reset();
 
     if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
     {
@@ -33,181 +27,98 @@ void UHktIntentSubsystem::Deinitialize()
     Super::Deinitialize();
 }
 
-void UHktIntentSubsystem::ProcessIntentChange(const FHktIntentEvent& Event, EIntentChangeType ChangeType)
+UHktIntentSubsystem* UHktIntentSubsystem::Get(UWorld* World)
 {
-    // Event로부터 Effect 생성/적용
-    ApplyEffectsFromEvent(Event, ChangeType);
+    return World->GetSubsystem<UHktIntentSubsystem>();
 }
 
-// ============================================================================
-// IHktIntentEventProvider Implementation
-// ============================================================================
-
-const TArray<FHktUnitHandle>& UHktIntentSubsystem::GetIntentEffectOwners() const
+FHktChannelIntentData& UHktIntentSubsystem::GetChannelData(int32 ChannelId)
 {
-    if (bEffectOwnersCacheDirty)
-    {
-        CachedEffectOwners.Reset();
-        OwnerEffectMap.GetKeys(CachedEffectOwners);
-        bEffectOwnersCacheDirty = false;
-    }
-    return CachedEffectOwners;
+    return ChannelMap.FindOrAdd(ChannelId);
 }
 
-const TArray<FHktIntentEffect>& UHktIntentSubsystem::GetIntentEffectsForOwner(const FHktUnitHandle& OwnerHandle) const
+void UHktIntentSubsystem::SetCurrentServerFrame(int32 FrameNumber)
 {
-    if (const TArray<FHktIntentEffect>* FoundEffects = OwnerEffectMap.Find(OwnerHandle))
-    {
-        return *FoundEffects;
-    }
-    return EmptyEffects;
+    // 프레임은 보통 증가하는 방향이어야 하지만, 롤백 상황 등을 고려해 단순 대입
+    CurrentServerFrame = FrameNumber;
 }
 
-bool UHktIntentSubsystem::HasIntentEffectWithTag(const FHktUnitHandle& OwnerHandle, FGameplayTag Tag) const
+void UHktIntentSubsystem::AddIntentEvent(int32 ChannelId, const FHktIntentEvent& InEvent)
 {
-    const TArray<FHktIntentEffect>& Effects = GetIntentEffectsForOwner(OwnerHandle);
-    return Effects.ContainsByPredicate([&](const FHktIntentEffect& E) { return E.EffectTag == Tag; });
+    FHktChannelIntentData& Data = GetChannelData(ChannelId);
+
+    // 1. 활성 리스트에 추가 (State)
+    Data.ActiveIntents.Add(InEvent);
+
+    // 2. 히스토리 버퍼에 추가 이벤트로 기록
+    Data.HistoryBuffer.Emplace(InEvent, false);
 }
 
-// ============================================================================
-// Effect Management API
-// ============================================================================
-
-void UHktIntentSubsystem::AddEffectToOwner(const FHktUnitHandle& OwnerHandle, const FHktIntentEffect& Effect)
+void UHktIntentSubsystem::RemoveIntentEvent(int32 ChannelId, const FHktIntentEvent& InEvent)
 {
-    TArray<FHktIntentEffect>& EffectList = OwnerEffectMap.FindOrAdd(OwnerHandle);
-    EffectList.Add(Effect);
-    bEffectOwnersCacheDirty = true;
-}
+    FHktChannelIntentData& Data = GetChannelData(ChannelId);
 
-void UHktIntentSubsystem::RemoveEffectFromOwner(const FHktUnitHandle& OwnerHandle, int32 EffectId)
-{
-    if (TArray<FHktIntentEffect>* EffectList = OwnerEffectMap.Find(OwnerHandle))
-    {
-        EffectList->RemoveAll([EffectId](const FHktIntentEffect& E) { return E.EffectId == EffectId; });
-
-        if (EffectList->IsEmpty())
-        {
-            OwnerEffectMap.Remove(OwnerHandle);
-            bEffectOwnersCacheDirty = true;
-        }
-    }
-}
-
-void UHktIntentSubsystem::RemoveAllEffectsFromOwner(const FHktUnitHandle& OwnerHandle)
-{
-    if (OwnerEffectMap.Remove(OwnerHandle) > 0)
-    {
-        bEffectOwnersCacheDirty = true;
-    }
-}
-
-// ============================================================================
-// Effect Generation (Private)
-// ============================================================================
-
-void UHktIntentSubsystem::ApplyEffectsFromEvent(const FHktIntentEvent& Event, EIntentChangeType ChangeType)
-{
-    // Added 이벤트에만 Effect 생성
-    // (Effect는 독립적으로 관리되므로 Event Removed 시 자동 제거하지 않음)
-    if (ChangeType != EIntentChangeType::Added)
-    {
-        return;
-    }
-
-    // 매핑 어셋 조회
-    UHktIntentEffectMappingAsset* MappingAsset = FindMappingAssetForEventTag(Event.EventTag);
-    if (!MappingAsset)
-    {
-        return;
-    }
-
-    const int32 CurrentFrame = Event.FrameNumber;
-
-    // Subject들에게 Effect 적용
-    for (const FHktUnitHandle& SubjectHandle : Event.Subjects)
-    {
-        if (!SubjectHandle.IsValid())
-        {
-            continue;
-        }
-
-        for (const FHktEffectDefinition& EffectDef : MappingAsset->SubjectEffects)
-        {
-            if (!EffectDef.EffectTag.IsValid())
-            {
-                continue;
-            }
-
-            FHktIntentEffect NewEffect;
-            NewEffect.EffectId = GenerateEffectId();
-            NewEffect.FrameNumber = CurrentFrame;
-            NewEffect.Owner = SubjectHandle;
-            NewEffect.EffectTag = EffectDef.EffectTag;
-
-            AddEffectToOwner(SubjectHandle, NewEffect);
-        }
-    }
-
-    // Target에게 Effect 적용
-    if (Event.Target.IsValid())
-    {
-        for (const FHktEffectDefinition& EffectDef : MappingAsset->TargetEffects)
-        {
-            if (!EffectDef.EffectTag.IsValid())
-            {
-                continue;
-            }
-
-            FHktIntentEffect NewEffect;
-            NewEffect.EffectId = GenerateEffectId();
-            NewEffect.FrameNumber = CurrentFrame;
-            NewEffect.Owner = Event.Target;
-            NewEffect.EffectTag = EffectDef.EffectTag;
-
-            AddEffectToOwner(Event.Target, NewEffect);
-        }
-    }
-}
-
-UHktIntentEffectMappingAsset* UHktIntentSubsystem::FindMappingAssetForEventTag(FGameplayTag EventTag) const
-{
-    if (const TObjectPtr<UHktIntentEffectMappingAsset>* FoundAsset = EffectMappingRegistry.Find(EventTag))
-    {
-        return FoundAsset->Get();
-    }
-    return nullptr;
-}
-
-void UHktIntentSubsystem::LoadEffectMappingAssets()
-{
-    UAssetManager& AssetManager = UAssetManager::Get();
+    // 1. 활성 리스트에서 제거 (State)
+    Data.ActiveIntents.Remove(InEvent);
     
-    TArray<FPrimaryAssetId> AssetIds;
-    AssetManager.GetPrimaryAssetIdList(UHktIntentEffectMappingAsset::GetAssetType(), AssetIds);
+    // 2. 히스토리 버퍼에 제거 이벤트로 기록
+    Data.HistoryBuffer.Emplace(InEvent, true);
+}
 
-    for (const FPrimaryAssetId& AssetId : AssetIds)
+void UHktIntentSubsystem::UpdateIntentEvent(int32 ChannelId, const FHktIntentEvent& InNewEvent)
+{
+    FHktChannelIntentData& Data = GetChannelData(ChannelId);
+    
+    // 1. 활성 리스트에서 기존 이벤트 찾아서 업데이트 (State)
+    FHktIntentEvent* ExistingEvent = Data.ActiveIntents.FindByPredicate([&](const FHktIntentEvent& Event)
     {
-        // 동기 로드 (Initialize 시점이므로 허용)
-        FSoftObjectPath AssetPath = AssetManager.GetPrimaryAssetPath(AssetId);
-        if (UHktIntentEffectMappingAsset* LoadedAsset = Cast<UHktIntentEffectMappingAsset>(AssetPath.TryLoad()))
-        {
-            if (LoadedAsset->EventTag.IsValid())
-            {
-                EffectMappingRegistry.Add(LoadedAsset->EventTag, LoadedAsset);
-            }
-        }
+        return Event.EventId == InNewEvent.EventId;
+    });
+    if (ExistingEvent)
+    {
+        *ExistingEvent = InNewEvent;
+    }
+    
+    FHktIntentHistoryEntry* ExistingHistoryEntry = Data.HistoryBuffer.FindByPredicate([&](const FHktIntentHistoryEntry& Entry)
+    {
+        return Entry.Event.EventId == InNewEvent.EventId;
+    });
+    if (ExistingHistoryEntry)
+    {
+        ExistingHistoryEntry->Event = InNewEvent;
     }
 }
 
-void UHktIntentSubsystem::RefreshCachedEffectOwners()
+bool UHktIntentSubsystem::FlushEvents(int32 ChannelId, int32& OutSyncedFrame, TArray<FHktIntentHistoryEntry>& OutHistory)
 {
-    CachedEffectOwners.Reset();
-    OwnerEffectMap.GetKeys(CachedEffectOwners);
-    bEffectOwnersCacheDirty = false;
+    // 맵에 없으면 처리할 게 없음
+    if (!ChannelMap.Contains(ChannelId))
+    {
+        return false;
+    }
+
+    FHktChannelIntentData& Data = ChannelMap[ChannelId];
+
+    // 버퍼에 데이터가 없으면 false 반환 (최적화)
+    if (Data.HistoryBuffer.Num() == 0)
+    {
+        // 데이터는 없지만 프레임 동기화 정보는 갱신해주어야 할 수도 있음.
+        OutSyncedFrame = CurrentServerFrame;
+        Data.LastSyncedFrame = CurrentServerFrame;
+        return false; 
+    }
+
+    // 1. 현재 시스템의 서버 프레임을 기록
+    OutSyncedFrame = CurrentServerFrame;
+    Data.LastSyncedFrame = CurrentServerFrame;
+
+    // 2. 히스토리 버퍼 이동 (MoveTemp로 복사 비용 절감)
+    OutHistory = MoveTemp(Data.HistoryBuffer);
+
+    return true;
 }
 
-int32 UHktIntentSubsystem::GenerateEffectId()
+int32 UHktIntentSubsystem::GetCurrentServerFrame() const
 {
-    return NextEffectId++;
+    return CurrentServerFrame;
 }

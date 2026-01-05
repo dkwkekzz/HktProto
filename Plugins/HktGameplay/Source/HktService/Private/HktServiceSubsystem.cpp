@@ -1,4 +1,4 @@
-#include "HktServiceSubsystem.h"
+﻿#include "HktServiceSubsystem.h"
 #include "Engine/World.h"
 
 void UHktServiceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -11,6 +11,7 @@ void UHktServiceSubsystem::Deinitialize()
 	SelectionProvider = nullptr;
 	IntentEventProvider = nullptr;
 	CodexProvider = nullptr;
+	JobProvider = nullptr;
 	Super::Deinitialize();
 }
 
@@ -75,4 +76,22 @@ TScriptInterface<IHktIntentEventProvider> UHktServiceSubsystem::GetIntentEventPr
 TScriptInterface<IHktCodexProvider> UHktServiceSubsystem::GetCodexProvider() const
 {
 	return CodexProvider;
+}
+
+void UHktServiceSubsystem::RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider)
+{
+	JobProvider = Provider;
+}
+
+void UHktServiceSubsystem::UnregisterJobProvider(TScriptInterface<IHktJobProvider> Provider)
+{
+	if (JobProvider == Provider)
+	{
+		JobProvider = nullptr;
+	}
+}
+
+TScriptInterface<IHktJobProvider> UHktServiceSubsystem::GetJobProvider() const
+{
+	return JobProvider;
 }

@@ -16,6 +16,16 @@
 	"Installed": false,
 	"Modules": [
 		{
+			"Name": "HktService",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "HktFlow",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "HktIntent",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
@@ -27,26 +37,6 @@
 		},
 		{
 			"Name": "HktPresentation",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "HktController",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "HktReplication",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "HktRules",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "HktVisualization",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		},

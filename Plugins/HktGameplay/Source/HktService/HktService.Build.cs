@@ -1,4 +1,4 @@
-using UnrealBuildTool;
+﻿using UnrealBuildTool;
 
 public class HktService : ModuleRules
 {
@@ -12,7 +12,6 @@ public class HktService : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-                "MassEntity",
                 "StructUtils",
                 "GameplayTags"
 			}

@@ -1,8 +1,6 @@
-#pragma once
+﻿#pragma once
 
-#include "CoreMinimal.h"
-#include "UObject/Interface.h"
-#include "HktServiceTypes.h"
+#include "HktServiceInterfaces.h"
 #include "IHktSelectionProvider.generated.h"
 
 struct FHitResult;
@@ -22,6 +20,7 @@ class HKTSERVICE_API IHktSelectionProvider
 	GENERATED_BODY()
 
 public:
-	virtual void QuerySelectUnits(const FHitResult& InHitResult, TFunction<void(const TArray<FHktUnitHandle>&)> Callback) const = 0;
+	virtual bool QuerySelectUnit(const FHitResult& InHitResult, FHktUnitHandle& OutUnitHandle) const = 0;
+	virtual bool QuerySelectUnits(const FHitResult& InBeginHitResult, const FHitResult& InEndHitResult, TArray<FHktUnitHandle>& OutUnitHandles) const = 0;
 };
 

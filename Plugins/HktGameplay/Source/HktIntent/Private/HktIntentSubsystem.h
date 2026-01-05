@@ -1,21 +1,30 @@
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "HktIntentInterfaces.h"
-#include "HktIntentComponent.h"
-#include "HktUnitHandle.h"
+#include "IHktIntentEventProvider.h"
 #include "HktIntentSubsystem.generated.h"
 
-class UHktIntentEffectMappingAsset;
+// 채널별로 관리되는 이벤트 상태 데이터
+struct FHktChannelIntentData
+{
+    // 현재 활성화된 인텐트 목록 (State)
+    TArray<FHktIntentEvent> ActiveIntents;
 
-/**
- * [Central Logic Brain]
- * - UnitHandle 기반으로 Intent 이벤트를 관리
- * - Event → Effect 변환 및 제공
- */
+    // 외부로 제공되기 위해 대기 중인 이벤트 히스토리 (Buffer)
+    // 발생 순서대로 추가/제거 이력을 기록
+    TArray<FHktIntentHistoryEntry> HistoryBuffer;
+
+    // 이 채널이 마지막으로 동기화된 서버 프레임
+    int32 LastSyncedFrame = -1;
+};
+
+// ------------------------------------------------------------------------------------------------
+// [Subsystem Implementation]
+// ------------------------------------------------------------------------------------------------
+
 UCLASS()
-class HKTINTENT_API UHktIntentSubsystem : public UWorldSubsystem, public IHktIntentEventProvider
+class UHktIntentSubsystem : public UWorldSubsystem, public IHktIntentEventProvider
 {
     GENERATED_BODY()
 
@@ -23,58 +32,37 @@ public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
     virtual void Deinitialize() override;
 
-    // --- Public API ---
-    /** 
-     * 컴포넌트로부터 변경 사항 수신 
-     * (Event 내부의 Subjects 배열을 순회하며 처리)
-     */
-    void ProcessIntentChange(const FHktIntentEvent& Event, EIntentChangeType ChangeType);
+    // Helper to get the subsystem from a world context
+    static UHktIntentSubsystem* Get(UWorld* World);
 
-    // --- IHktIntentEventProvider Implementation ---
-    virtual const TArray<FHktUnitHandle>& GetIntentEffectOwners() const override;
-    virtual const TArray<FHktIntentEffect>& GetIntentEffectsForOwner(const FHktUnitHandle& OwnerHandle) const override;
-    virtual bool HasIntentEffectWithTag(const FHktUnitHandle& OwnerHandle, FGameplayTag Tag) const override;
+    // --- UHktIntentComponent 인터페이스 ---
+    /** 인텐트 추가: Subject와 Tag가 겹치지 않는다고 가정하거나, 중복 허용 정책에 따름 */
+    void AddIntentEvent(int32 ChannelId, const FHktIntentEvent& InEvent);
 
-    // --- Effect Management API ---
-    /** Effect를 특정 Owner에게 추가 */
-    void AddEffectToOwner(const FHktUnitHandle& OwnerHandle, const FHktIntentEffect& Effect);
+    /** 인텐트 제거: Subject와 Tag가 일치하는 이벤트를 찾아 제거 */
+    void RemoveIntentEvent(int32 ChannelId, const FHktIntentEvent& InEvent);
 
-    /** 특정 Owner의 특정 EffectId를 가진 Effect 제거 */
-    void RemoveEffectFromOwner(const FHktUnitHandle& OwnerHandle, int32 EffectId);
+    /** 인텐트 갱신: 기존 인텐트를 찾아 Target이나 Frame 등을 변경 (Remove -> Add 로직으로 처리하여 변경 사항 전파) */
+    void UpdateIntentEvent(int32 ChannelId, const FHktIntentEvent& InNewEvent);
 
-    /** 특정 Owner의 모든 Effect 제거 */
-    void RemoveAllEffectsFromOwner(const FHktUnitHandle& OwnerHandle);
-    
-private:
-    // --- Effect Generation ---
-    /** Event로부터 Subject/Target에게 Effect 적용 */
-    void ApplyEffectsFromEvent(const FHktIntentEvent& Event, EIntentChangeType ChangeType);
+    /** Set the current server frame (Called by GameMode) */
+    void SetCurrentServerFrame(int32 FrameNumber);
 
-    /** EventTag에 해당하는 매핑 어셋 조회 */
-    UHktIntentEffectMappingAsset* FindMappingAssetForEventTag(FGameplayTag EventTag) const;
+    // --- UHktIntentEventProvider 인터페이스 구현 ---
 
-    /** 매핑 어셋 로드 */
-    void LoadEffectMappingAssets();
+    /** 외부 시스템(뷰, 로직 등)에서 호출하여 변경된 이벤트 히스토리를 가져가고 내부 버퍼를 비웁니다. */
+    virtual bool FlushEvents(int32 ChannelId, int32& OutSyncedFrame, TArray<FHktIntentHistoryEntry>& OutHistory) override;
 
-    /** CachedEffectOwners 목록 갱신 */
-    void RefreshCachedEffectOwners();
-
-    /** 고유한 EffectId 생성 */
-    int32 GenerateEffectId();
+    /** 현재 동기화된 서버 프레임을 반환합니다. (외부 조회용) */
+    virtual int32 GetCurrentServerFrame() const override;
 
 private:
-    /** Owner(Handle)별 Effect 목록 */
-    TMap<FHktUnitHandle, TArray<FHktIntentEffect>> OwnerEffectMap;
+    FHktChannelIntentData& GetChannelData(int32 ChannelId);
 
-    /** 활성화된 Effect Owner 목록 (캐시) */
-    mutable TArray<FHktUnitHandle> CachedEffectOwners;
+private:
+    // 채널 ID를 키로 하는 데이터 맵
+    TMap<int32, FHktChannelIntentData> ChannelMap;
 
-    /** CachedEffectOwners가 유효한지 여부 */
-    mutable bool bEffectOwnersCacheDirty = true;
-
-    /** EventTag → MappingAsset 레지스트리 */
-    TMap<FGameplayTag, TObjectPtr<UHktIntentEffectMappingAsset>> EffectMappingRegistry;
-
-    /** EffectId 생성용 카운터 */
-    int32 NextEffectId = 1;
+    // 현재 월드의 글로벌 서버 프레임 (동기화 기준)
+    int32 CurrentServerFrame = 0;
 };

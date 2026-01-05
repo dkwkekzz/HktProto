@@ -4,33 +4,29 @@
 #include "GameFramework/PlayerState.h"
 #include "GameplayTagContainer.h"
 #include "HktServiceTypes.h"
-#include "Objects/HktInputContexts.h"
 #include "HktIntentPlayerState.generated.h"
+
+class IHktSubjectContext;
+class IHktCommandContext;
 
 /**
  * PlayerState for HktIntent system.
  * Manages client-local state such as Input Mappings (Key -> Action).
  */
 UCLASS()
-class HKTINTENT_API AHktIntentPlayerState : public APlayerState, public IHktSubjectContext, public IHktCommandContext
+class HKTINTENT_API AHktIntentPlayerState : public APlayerState
 {
 	GENERATED_BODY()
 
 public:
 	AHktIntentPlayerState();
+	~AHktIntentPlayerState();
+
+	IHktSubjectContext* GetSubjectContext() const;
+	IHktCommandContext* GetCommandContext() const;
 
 protected:
 	virtual void BeginPlay() override;
-
-	// IHktSubjectContext Interface
-	virtual TArray<FHktUnitHandle> ResolveSubjects() const override;
-	virtual FHktUnitHandle ResolvePrimarySubject() const override;
-	virtual bool IsValid() const override;
-	virtual bool IsPrimarySubject() const override { return true; }
-
-	// IHktCommandContext Interface
-	virtual FGameplayTag ResolveEventTag() const override;
-	virtual bool IsRequiredTarget() const override { return false; }
 
 private:
 	/** Player Handle */
@@ -39,4 +35,10 @@ private:
 
 	UPROPERTY(Transient)
 	FGameplayTag PlayerInitialEventTag;
+
+	/** Subject Context Implementation (owned by this PlayerState) */
+	TUniquePtr<IHktSubjectContext> SubjectContextImpl;
+
+	/** Command Context Implementation (owned by this PlayerState) */
+	TUniquePtr<IHktCommandContext> CommandContextImpl;
 };

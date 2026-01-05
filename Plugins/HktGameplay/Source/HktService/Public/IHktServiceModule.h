@@ -1,13 +1,20 @@
-#pragma once
+﻿#pragma once
 
-#include "CoreMinimal.h"
+#include "HktServiceInterfaces.h"
 #include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
 
-class FHktServiceModule : public IModuleInterface
+class HKTSERVICE_API IHktServiceModule : public IModuleInterface
 {
 public:
-	/** IModuleInterface implementation */
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
+	static inline IHktServiceModule& Get()
+	{
+		return FModuleManager::LoadModuleChecked<IHktServiceModule>("HktService");
+	}
+
+	static inline bool IsAvailable()
+	{
+		return FModuleManager::Get().IsModuleLoaded("HktService");
+	}
 };
 

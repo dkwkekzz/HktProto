@@ -30,13 +30,12 @@ public:
      */
     void QueryDataAssetByTag(const FGameplayTag& InTag, FOnQueryDataComplete Callback) const;
 
-protected:
+private:
     /**
      * Initializes the asset index by scanning the Asset Registry.
      */
     void BuildAssetIndex();
 
-protected:
     /**
      * Cached index.
      * Key: GameplayTag

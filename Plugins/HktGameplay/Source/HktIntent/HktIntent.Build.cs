@@ -27,19 +27,15 @@ public class HktIntent : ModuleRules
 				"NetCore",
 				"EnhancedInput",
 				"InputCore",
-				"MassEntity",
-				"MassCommon",
-				"GameplayTags",
-				"StructUtils",
-				"Niagara",
-				"HktService",
-				"HktCodex"
+				"Niagara"
 			}
 		);
 			
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"HktService",
+				"HktCodex"
 			}
 		);
 		
