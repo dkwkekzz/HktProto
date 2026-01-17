@@ -30,29 +30,23 @@ public:
     virtual TStatId GetStatId() const override;
     // End UTickableWorldSubsystem Interface
 
-    /** 태그에 매칭되는 Flow 생성 델리게이트 등록 (초기화 단계에서 호출 권장) */
-    using FFlowFactoryFunc = TFunction<TSharedPtr<IHktFlow>()>;
-    void RegisterFlowFactory(FGameplayTag Tag, FFlowFactoryFunc FactoryFunc);
+    /** 
+     * 전역 Flow 등록 (Static)
+     * - 모듈 로드 시점이나 static 초기화 시점에 호출하여 Flow 인스턴스(CDO 개념)를 등록합니다.
+     */
+    static void RegisterFlowInstance(FGameplayTag Tag, TSharedPtr<IHktFlow> FlowInstance);
 
 protected:
-    /** * 이벤트를 동기화하고 Flow 상태를 업데이트합니다. 
-     * (기존에는 Flow->TickFlow를 호출했으나, 이제는 이벤트 동기화 및 DefineFlow 호출이 주 역할입니다)
-     */
+    /** * 이벤트를 동기화하고 Flow 상태를 업데이트합니다. */
     void UpdateFlows(float DeltaTime);
 
-    /** 개별 이벤트에 대한 Flow 생성 및 정의(DefineFlow) 호출 */
-    void HandleFlowAdded(const FHktIntentEvent& NewEvent);
-
-    /** 개별 이벤트에 대한 Flow 제거 및 관련 리소스 정리 */
-    void HandleFlowRemoved(const FHktIntentEvent& RemovedEvent);
+    /** 태그에 해당하는 Flow 인스턴스를 가져옵니다 (전역 레지스트리 조회) */
+    TSharedPtr<IHktFlow> GetFlow(FGameplayTag Tag);
 
 private:
-    /** 활성화된 Flow 인스턴스 (EventId -> Flow Instance) */
-    TMap<int32, TSharedPtr<IHktFlow>> ActiveFlows;
-
-    /** 태그별 Flow 팩토리 */
-    TMap<FGameplayTag, FFlowFactoryFunc> FlowFactories;
-
-    /** 임시 히스토리 버퍼 (메모리 할당 최소화) */
-    TArray<FHktIntentHistoryEntry> TempHistory;
+    /** 
+     * 전역적으로 등록된 Flow 인스턴스 저장소 (Meyers Singleton Pattern)
+     * - Static Initialization Order Fiasco 방지를 위해 함수 내 정적 변수로 관리
+     */
+    static TMap<FGameplayTag, TSharedPtr<IHktFlow>>& GetGlobalFlowRegistry();
 };

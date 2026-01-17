@@ -1,7 +1,7 @@
-#include "HktIntentComponent.h"
+#include "HktIntentEventComponent.h"
+#include "HktIntentBuilderComponent.h"
 #include "HktIntentGameMode.h"
 #include "HktIntentSubsystem.h"
-#include "Objects/HktInputContexts.h" // Interface definitions
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
 
@@ -13,7 +13,7 @@ void FHktEventItem::PostReplicatedAdd(const FHktEventContainer& InArraySerialize
 {
     if (InArraySerializer.OwnerSubsystem)
     {
-        InArraySerializer.OwnerSubsystem->AddIntentEvent(InArraySerializer.ChannelId, Event);
+        InArraySerializer.OwnerSubsystem->CreateOrGetChannel(InArraySerializer.ChannelId)->AddEvent(Event);
     }
 }
 
@@ -21,7 +21,7 @@ void FHktEventItem::PostReplicatedChange(const FHktEventContainer& InArraySerial
 {
     if (InArraySerializer.OwnerSubsystem)
     {
-        InArraySerializer.OwnerSubsystem->UpdateIntentEvent(InArraySerializer.ChannelId, Event);
+        InArraySerializer.OwnerSubsystem->CreateOrGetChannel(InArraySerializer.ChannelId)->UpdateEvent(Event);
     }
 }
 
@@ -29,7 +29,7 @@ void FHktEventItem::PreReplicatedRemove(const FHktEventContainer& InArraySeriali
 {
     if (InArraySerializer.OwnerSubsystem)
     {
-        InArraySerializer.OwnerSubsystem->RemoveIntentEvent(InArraySerializer.ChannelId, Event);
+        InArraySerializer.OwnerSubsystem->CreateOrGetChannel(InArraySerializer.ChannelId)->RemoveEvent(Event);
     }
 }
 
@@ -47,7 +47,7 @@ FHktEventItem& FHktEventContainer::AddOrUpdateItem(const FHktEventItem& Item)
         // 서버에서 직접 Subsystem에 동기화
         if (OwnerSubsystem)
         {
-            OwnerSubsystem->UpdateIntentEvent(ChannelId, ExistingItem->Event);
+            OwnerSubsystem->CreateOrGetChannel(ChannelId)->UpdateEvent(ExistingItem->Event);
         }
         return *ExistingItem;
     }
@@ -57,7 +57,7 @@ FHktEventItem& FHktEventContainer::AddOrUpdateItem(const FHktEventItem& Item)
     // 서버에서 직접 Subsystem에 동기화
     if (OwnerSubsystem)
     {
-        OwnerSubsystem->AddIntentEvent(ChannelId, NewItem.Event);
+        OwnerSubsystem->CreateOrGetChannel(ChannelId)->AddEvent(ExistingItem->Event);
     }
     return NewItem;
 }
@@ -66,13 +66,13 @@ FHktEventItem& FHktEventContainer::AddOrUpdateItem(const FHktEventItem& Item)
 // [Component Logic]
 // ============================================================================
 
-UHktIntentComponent::UHktIntentComponent()
+UHktIntentEventComponent::UHktIntentEventComponent()
 {
     SetIsReplicatedByDefault(true);
     LocalIntentSequence = 0;
 }
 
-void UHktIntentComponent::BeginPlay()
+void UHktIntentEventComponent::BeginPlay()
 {
     Super::BeginPlay();
 
@@ -89,49 +89,45 @@ void UHktIntentComponent::BeginPlay()
     }
 }
 
-void UHktIntentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void UHktIntentEventComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-    DOREPLIFETIME_CONDITION(UHktIntentComponent, EventBuffer, COND_None);
+    DOREPLIFETIME_CONDITION(UHktIntentEventComponent, EventBuffer, COND_None);
 }
 
-void UHktIntentComponent::SubmitIntent(const TScriptInterface<IHktSubjectContext> Subject, 
-                                       const TScriptInterface<IHktCommandContext> Command, 
-                                       const TScriptInterface<IHktTargetContext> Target)
+void UHktIntentEventComponent::SubmitIntent(UHktIntentBuilderComponent* Builder)
 {
-    if (!Subject || !Subject->IsValid()) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("Subject is not valid"));
-		return;
-	}
+    if (!Builder)
+    {
+        UE_LOG(LogTemp, Error, TEXT("IntentBuilder is null"));
+        return;
+    }
 
-    if (!Command || !Command->IsValid()) 
-	{
-		UE_LOG(LogTemp, Error, TEXT("Command is not valid"));
-		return;
-	}
+    if (!Builder->IsReadyToSubmit())
+    {
+        UE_LOG(LogTemp, Error, TEXT("IntentBuilder is not ready to submit"));
+        return;
+    }
 
     // 클라이언트(AutonomousProxy)인 경우에만 서버로 전송
     if (GetOwnerRole() != ROLE_AutonomousProxy)
     {
-		UE_LOG(LogTemp, Error, TEXT("Not an autonomous proxy, role: %d"), GetOwnerRole());
-		return;
-	}
-	
-	FHktIntentEvent NewEvent;
-	NewEvent.EventId = ++LocalIntentSequence;
-	NewEvent.Subject = Subject->ResolvePrimarySubject();
-	NewEvent.EventTag = Command->ResolveEventTag();
-	if (Target)
-	{
-		NewEvent.Target = Target->GetTargetUnit();
-		NewEvent.Location = Target->GetTargetLocation();
-	}
+        UE_LOG(LogTemp, Error, TEXT("Not an autonomous proxy, role: %d"), GetOwnerRole());
+        return;
+    }
 
-	Server_ReceiveEvent(NewEvent);
+    // Builder에서 직접 데이터 접근
+    FHktIntentEvent NewEvent;
+    NewEvent.EventId = ++LocalIntentSequence;
+    NewEvent.Subject = Builder->GetSubject();
+    NewEvent.EventTag = Builder->GetEventTag();
+    NewEvent.Target = Builder->GetTargetUnit();
+    NewEvent.Location = Builder->GetTargetLocation();
+
+    Server_ReceiveEvent(NewEvent);
 }
 
-void UHktIntentComponent::Server_ReceiveEvent_Implementation(FHktIntentEvent PendingEvent)
+void UHktIntentEventComponent::Server_ReceiveEvent_Implementation(FHktIntentEvent PendingEvent)
 {
     // GameMode에서 FrameNumber와 ChannelId 설정
     if (UWorld* World = GetWorld())
@@ -146,7 +142,7 @@ void UHktIntentComponent::Server_ReceiveEvent_Implementation(FHktIntentEvent Pen
     EventBuffer.AddOrUpdateItem(FHktEventItem(PendingEvent));
 }
 
-bool UHktIntentComponent::Server_ReceiveEvent_Validate(FHktIntentEvent PendingEvent)
+bool UHktIntentEventComponent::Server_ReceiveEvent_Validate(FHktIntentEvent PendingEvent)
 {
     return true; 
 }

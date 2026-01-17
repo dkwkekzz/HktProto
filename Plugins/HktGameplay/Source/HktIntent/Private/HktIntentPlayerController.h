@@ -5,17 +5,15 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
-#include "HktInputContexts.h" // Context Interfaces
 #include "HktIntentPlayerController.generated.h"
 
-class UHktIntentComponent;
-class UHktActionDataAsset;
 class UInputMappingContext;
 class UInputAction;
-class UNiagaraSystem;
+class AHktIntentPlayerState;
+class UHktIntentBuilderComponent;
 
 /**
- * 입력을 받아 Context를 생성(Factory)하고 조립(Staging)하는 컨트롤러.
+ * 입력을 받아 Intent를 조립하고 PlayerState로 제출하는 컨트롤러.
  */
 UCLASS()
 class HKTGAME_API AHktIntentPlayerController : public APlayerController
@@ -33,38 +31,21 @@ protected:
     // Input Handlers
     //-------------------------------------------------------------------------
     
-    /** 좌클릭: 주체(Subject) 컨텍스트 생성 및 저장 */
-    void HandleSubjectAction(const FInputActionValue& Value);
+    /** 좌클릭: 주체(Subject) 선택 */
+    void OnSubjectAction(const FInputActionValue& Value);
 
-    /** 우클릭: 대상(Target) 컨텍스트 생성 및 최종 제출(Submit) */
-    void HandleTargetAction(const FInputActionValue& Value);
+    /** 우클릭: 대상(Target) 선택 및 제출 */
+    void OnTargetAction(const FInputActionValue& Value);
 
-    /** 숫자키: 명령(Command) 컨텍스트 생성 및 저장 */
-    void HandleSlotAction(const FInputActionValue& Value, int32 SlotIndex);
+    /** 숫자키: 명령(Command) 선택 */
+    void OnSlotAction(const FInputActionValue& Value, int32 SlotIndex);
 
-    void HandleZoom(const FInputActionValue& Value);
-
-    //-------------------------------------------------------------------------
-    // Helper
-    //-------------------------------------------------------------------------
-    bool GetHitUnderCursor(FHitResult& OutHitResult) const;
+    void OnZoom(const FInputActionValue& Value);
 
 protected:
+    /** Intent 빌더 컴포넌트 (클라이언트 로컬 입력 조립용) */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hkt|Components")
-    TObjectPtr<UHktIntentComponent> IntentComponent;
-
-    //-------------------------------------------------------------------------
-    // Staged Contexts (현재 조립 중인 의도 재료들)
-    //-------------------------------------------------------------------------
-
-    UPROPERTY(Transient, VisibleInstanceOnly, Category = "Hkt|Context")
-    TScriptInterface<IHktSubjectContext> PendingSubjectContext;
-
-    UPROPERTY(Transient, VisibleInstanceOnly, Category = "Hkt|Context")
-    TScriptInterface<IHktCommandContext> PendingCommandContext;
-
-    // TargetContext는 보통 즉발성(우클릭 순간)이므로 멤버로 저장할 수도, 
-    // 로컬변수로 처리할 수도 있습니다. 여기서는 제출 시점에 생성합니다.
+    TObjectPtr<UHktIntentBuilderComponent> IntentBuilder;
 
     //-------------------------------------------------------------------------
     // Config

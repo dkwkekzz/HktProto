@@ -4,7 +4,7 @@ using UnrealBuildTool;
 
 public class HktFlow : ModuleRules
 {
-	public HktBehavior(ReadOnlyTargetRules Target) : base(Target)
+	public HktFlow(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		

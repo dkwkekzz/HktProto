@@ -1,29 +1,10 @@
 ﻿// Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "Flows/HktMoveToLocationBehavior.h"
-#include "HktFlowBuilder.h"
+#include "HktJobBuilder.h"
 
-FGameplayTag UHktMoveToLocationBehavior::GetStaticEventTag()
+void UHktMoveToLocationBehavior::DefineFlow(FHktJobBuilder& Builder, const FHktIntentEvent& Event)
 {
-	return FGameplayTag::RequestGameplayTag(FName("Event.Movement.MoveTo"));
-}
-
-FGameplayTag UHktMoveToLocationBehavior::GetEventTag() const
-{
-	return GetStaticEventTag();
-}
-
-void UHktMoveToLocationBehavior::DefineFlow(FHktFlowBuilder& Flow, const void* EventData)
-{
-	const FHktMoveToLocationEventData* Data = static_cast<const FHktMoveToLocationEventData*>(EventData);
-	if (!Data || Data->SubjectHandle == INDEX_NONE)
-	{
-		return;
-	}
-
-	const int32 Subject = Data->SubjectHandle;
-	const float Mass = Data->Mass;
-
 	/*
 	 * 이동 흐름:
 	 * 

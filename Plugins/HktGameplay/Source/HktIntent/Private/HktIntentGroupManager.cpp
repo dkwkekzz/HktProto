@@ -35,7 +35,7 @@ const TSet<FHktUnitHandle>* UHktIntentGroupManager::GetGroupMembers(const FHktUn
 {
     if (const int32* GroupID = UnitToGroupIDMap.Find(Unit))
     {
-        if (const FHktIntentGroup* Group = Groups.Find(*GroupID))
+        if (const FHktIntentEventGroup* Group = Groups.Find(*GroupID))
         {
             return &Group->Members;
         }
@@ -60,7 +60,7 @@ void UHktIntentGroupManager::AddEdge(const FHktUnitHandle& NodeA, const FHktUnit
     if (GroupIdA == 0 && GroupIdB == 0)
     {
         int32 NewID = NextGroupID++;
-        FHktIntentGroup& NewGroup = Groups.Add(NewID);
+        FHktIntentEventGroup& NewGroup = Groups.Add(NewID);
         NewGroup.GroupID = NewID;
         NewGroup.Members.Add(NodeA);
         NewGroup.Members.Add(NodeB);
@@ -138,8 +138,8 @@ void UHktIntentGroupManager::RemoveEdge(const FHktUnitHandle& NodeA, const FHktU
 
 void UHktIntentGroupManager::MergeGroups(int32 GroupIdKeep, int32 GroupIdAbsorb)
 {
-    FHktIntentGroup& KeepGroup = Groups[GroupIdKeep];
-    FHktIntentGroup AbsorbGroup;
+    FHktIntentEventGroup& KeepGroup = Groups[GroupIdKeep];
+    FHktIntentEventGroup AbsorbGroup;
     
     // Groups 맵에서 가져오고 바로 삭제하면 참조가 위험할 수 있으므로 MoveTemp 사용
     if (Groups.RemoveAndCopyValue(GroupIdAbsorb, AbsorbGroup))
@@ -156,7 +156,7 @@ void UHktIntentGroupManager::CheckAndSplitGroup(int32 GroupID, const FHktUnitHan
 {
     if (!Groups.Contains(GroupID)) return;
 
-    FHktIntentGroup& CurrentGroup = Groups[GroupID];
+    FHktIntentEventGroup& CurrentGroup = Groups[GroupID];
     
     // 그룹 멤버가 1명이면 더 이상 쪼갤 필요 없음 (고립됨)
     // 하지만 AdjacencyGraph에서 이미 제거되었으므로, 완전히 고립된 경우 그룹 삭제 처리
@@ -204,7 +204,7 @@ void UHktIntentGroupManager::CheckAndSplitGroup(int32 GroupID, const FHktUnitHan
 
         // 새 그룹 생성
         int32 NewGroupID = NextGroupID++;
-        FHktIntentGroup& NewGroup = Groups.Add(NewGroupID);
+        FHktIntentEventGroup& NewGroup = Groups.Add(NewGroupID);
         NewGroup.GroupID = NewGroupID;
         NewGroup.Members = NewCluster;
 

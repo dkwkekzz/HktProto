@@ -7,9 +7,6 @@
 #include "Engine/DataAsset.h"
 #include "HktCodexSubsystem.generated.h"
 
-// 단일 UDataAsset을 반환하도록 변경 (1 Tag : 1 Asset)
-DECLARE_DELEGATE_OneParam(FOnQueryDataComplete, UDataAsset*);
-
 /**
  * Subsystem to query DataAssets by GameplayTag.
  * Acts as a generic tag-based asset loader.

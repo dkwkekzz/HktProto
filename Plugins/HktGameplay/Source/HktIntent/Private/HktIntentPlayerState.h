@@ -3,15 +3,15 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
 #include "GameplayTagContainer.h"
-#include "HktServiceTypes.h"
 #include "HktIntentPlayerState.generated.h"
 
-class IHktSubjectContext;
-class IHktCommandContext;
+class UHktInputContext;
+class UHktIntentEventComponent;
+class UHktIntentBuilderComponent;
 
 /**
  * PlayerState for HktIntent system.
- * Manages client-local state such as Input Mappings (Key -> Action).
+ * Owns IntentEventComponent for network replication.
  */
 UCLASS()
 class HKTINTENT_API AHktIntentPlayerState : public APlayerState
@@ -20,25 +20,23 @@ class HKTINTENT_API AHktIntentPlayerState : public APlayerState
 
 public:
 	AHktIntentPlayerState();
-	~AHktIntentPlayerState();
 
-	IHktSubjectContext* GetSubjectContext() const;
-	IHktCommandContext* GetCommandContext() const;
+	//-------------------------------------------------------------------------
+	// Intent Submission (called by PlayerController)
+	//-------------------------------------------------------------------------
+	
+	/** Builder로부터 Intent를 구성하여 서버로 전송 */
+	void SubmitIntent(UHktIntentBuilderComponent* Builder);
 
 protected:
 	virtual void BeginPlay() override;
 
 private:
+	/** Intent 전송 컴포넌트 (네트워크 복제 담당) */
+	UPROPERTY(VisibleAnywhere, Category = "Hkt|Components")
+	TObjectPtr<UHktIntentEventComponent> IntentEventComponent;
+
 	/** Player Handle */
-	UPROPERTY(Transient)
-	FHktUnitHandle PlayerHandle;
-
-	UPROPERTY(Transient)
-	FGameplayTag PlayerInitialEventTag;
-
-	/** Subject Context Implementation (owned by this PlayerState) */
-	TUniquePtr<IHktSubjectContext> SubjectContextImpl;
-
-	/** Command Context Implementation (owned by this PlayerState) */
-	TUniquePtr<IHktCommandContext> CommandContextImpl;
+	UPROPERTY(Replicated)
+	FHktPlayerHandle PlayerHandle;
 };

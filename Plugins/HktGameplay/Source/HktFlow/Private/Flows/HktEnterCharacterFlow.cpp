@@ -1,27 +1,10 @@
 ﻿// Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "Flows/HktEnterCharacterBehavior.h"
-#include "HktFlowBuilder.h"
-#include "GameplayTagsManager.h"
+#include "HktJobBuilder.h"
 
-FGameplayTag UHktEnterCharacterBehavior::GetStaticEventTag()
+void UHktEnterCharacterBehavior::DefineFlow(FHktJobBuilder& Builder, const FHktIntentEvent& Event)
 {
-	return FGameplayTag::RequestGameplayTag(FName("Event.Character.Enter"));
-}
-
-FGameplayTag UHktEnterCharacterBehavior::GetEventTag() const
-{
-	return GetStaticEventTag();
-}
-
-void UHktEnterCharacterBehavior::DefineFlow(FHktFlowBuilder& Flow, const void* EventData)
-{
-	const FHktEnterCharacterEventData* Data = static_cast<const FHktEnterCharacterEventData*>(EventData);
-	if (!Data)
-	{
-		return;
-	}
-
 	/*
 	 * 캐릭터 진입 흐름:
 	 * 
@@ -30,17 +13,9 @@ void UHktEnterCharacterBehavior::DefineFlow(FHktFlowBuilder& Flow, const void* E
 	 * 3. 등장 애니메이션 재생
 	 */
 
-	Flow.SpawnEntity(Data->CharacterType, Data->SpawnLocation)
-		.OnSpawned([&, Data](int32 CharacterHandle)
-		{
-			// 장착 아이템들을 캐릭터에 부착
-			for (const FName& ItemType : Data->EquippedItems)
-			{
-				Flow.SpawnEntity(ItemType, CharacterHandle);
-			}
-
-			// 등장 연출 애니메이션
-			Flow.PlayAnimation(CharacterHandle, FName("Spawn_Intro"));
-		});
+	Builder.SpawnEntity(Event.Target.Value)
+		.Then(Builder.PlayAnimation(Event.Subject.Value, FGameplayTag::RequestGameplayTag(FName("Anim.Character.Spawn"))))
+		.Then(Builder.SpawnEntity(FGameplayTag::RequestGameplayTag(FName("Entity.Character.Equipment"))))
+		.Then(Builder.PlayAnimation(Event.Subject.Value, FGameplayTag::RequestGameplayTag(FName("Anim.Character.Spawn_Intro"))));
 }
 

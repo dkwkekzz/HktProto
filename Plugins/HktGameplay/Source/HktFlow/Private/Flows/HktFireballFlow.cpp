@@ -1,19 +1,9 @@
 ﻿// Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "Flows/HktFireballBehavior.h"
-#include "HktFlowBuilder.h"
+#include "HktJobBuilder.h"
 
-FGameplayTag UHktFireballBehavior::GetStaticEventTag()
-{
-	return FGameplayTag::RequestGameplayTag(FName("Event.Ability.Fireball"));
-}
-
-FGameplayTag UHktFireballBehavior::GetEventTag() const
-{
-	return GetStaticEventTag();
-}
-
-void UHktFireballBehavior::DefineFlow(FHktFlowBuilder& FlowBuilder, const FHktIntentEvent& Event)
+void UHktFireballBehavior::DefineFlow(FHktJobBuilder& Builder, const FHktIntentEvent& Event)
 {
 	const int32 Caster = Event.Subject.Value;
 

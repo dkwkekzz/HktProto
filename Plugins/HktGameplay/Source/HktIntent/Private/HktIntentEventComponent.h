@@ -5,11 +5,13 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
-#include "HktServiceTypes.h"
-#include "HktIntentComponent.generated.h"
+#include "HktServiceInterfaces.h"
+#include "HktIntentEventComponent.generated.h"
+
+class UHktIntentBuilderComponent;
 
 struct FHktEventContainer;
-class UHktIntentComponent;
+class UHktIntentEventComponent;
 class UHktIntentSubsystem;
 
 UENUM(BlueprintType)
@@ -86,12 +88,12 @@ struct TStructOpsTypeTraits<FHktEventContainer> : public TStructOpsTypeTraitsBas
  * 서버에서 확정된 이벤트를 다시 클라이언트로 복제하여 동기화하는 컴포넌트
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class HKTINTENT_API UHktIntentComponent : public UActorComponent
+class HKTINTENT_API UHktIntentEventComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:	
-	UHktIntentComponent();
+	UHktIntentEventComponent();
 
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -100,9 +102,7 @@ public:
 
 	/** 클라이언트에서 입력을 받아 의도 제출 */
 	UFUNCTION(BlueprintCallable, Category = "Hkt|Intent")
-	void SubmitIntent(const TScriptInterface<IHktSubjectContext> Subject, 
-					  const TScriptInterface<IHktCommandContext> Command, 
-					  const TScriptInterface<IHktTargetContext> Target);
+	void SubmitIntent(UHktIntentBuilderComponent* Builder);
 
 	/** 복제된 이벤트 버퍼 직접 접근 (읽기 전용) */
 	UFUNCTION(BlueprintCallable, Category = "Hkt|Intent")
@@ -114,12 +114,10 @@ protected:
 	void Server_ReceiveEvent(FHktIntentEvent PendingEvent);
 
 private:
-	// --- Properties ---
-
-	/** 로컬에서 생성된 의도 ID 시퀀스 (Unique ID 발급용) */
-	int32 LocalIntentSequence;
-
 	/** 복제된 이벤트 데이터 버퍼 (Fast Array Serializer) */
 	UPROPERTY(Replicated)
 	FHktEventContainer EventBuffer;
+
+	/** 로컬에서 생성된 의도 ID 시퀀스 (Unique ID 발급용) */
+	int32 LocalIntentSequence;
 };

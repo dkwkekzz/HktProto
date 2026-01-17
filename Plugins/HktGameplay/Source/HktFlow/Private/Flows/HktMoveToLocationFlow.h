@@ -25,35 +25,5 @@ class HKTFLOW_API UHktMoveToLocationBehavior : public UObject, public IHktFlow
 public:
 	// IHktFlow Interface
 	virtual FGameplayTag GetEventTag() const override;
-	virtual void DefineFlow(FHktFlowBuilder& Flow, const void* EventData) override;
-
-	/** 이 Behavior가 처리하는 이벤트 태그 */
-	static FGameplayTag GetStaticEventTag();
+	virtual void DefineFlow(FHktJobBuilder& Builder, const FHktIntentEvent& Event) override;
 };
-
-/**
- * [Move To Location Event Data]
- * 이동 이벤트에 포함된 데이터
- */
-USTRUCT(BlueprintType)
-struct HKTFLOW_API FHktMoveToLocationEventData
-{
-	GENERATED_BODY()
-
-	/** 이동 주체 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	int32 SubjectHandle = INDEX_NONE;
-
-	/** 목표 위치 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FVector TargetLocation = FVector::ZeroVector;
-
-	/** 이동 속도 배율 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float SpeedMultiplier = 1.0f;
-
-	/** 주체의 질량 (충돌 시 힘 계산용) */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	float Mass = 1.0f;
-};
-

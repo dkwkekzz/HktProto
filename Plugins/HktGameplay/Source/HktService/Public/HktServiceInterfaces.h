@@ -28,3 +28,22 @@ struct FHktUnitHandle
 		return Value == Other.Value;
 	}
 };
+
+/**
+ * Handle to uniquely identify a player.
+ */
+USTRUCT(BlueprintType)
+struct FHktPlayerHandle
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	int32 Value = -1;
+
+	bool IsValid() const { return Value != -1; }
+
+	bool operator==(const FHktUnitHandle& Other) const
+	{
+		return Value == Other.Value;
+	}
+};

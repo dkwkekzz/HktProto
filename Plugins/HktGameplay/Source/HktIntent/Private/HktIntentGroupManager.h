@@ -36,7 +36,7 @@ private:
     TMap<FHktUnitHandle, int32> UnitToGroupIDMap;
 
     // 그룹 ID -> 그룹 데이터 매핑
-    TMap<int32, FHktIntentGroup> Groups;
+    TMap<int32, FHktIntentEventGroup> Groups;
 
     // 인접 리스트 (그래프 구조): A -> {B: 연결수, C: 연결수...}
     // 동일한 쌍에 대해 여러 이벤트가 있을 수 있으므로 참조 카운팅(Ref Count)을 사용합니다.
