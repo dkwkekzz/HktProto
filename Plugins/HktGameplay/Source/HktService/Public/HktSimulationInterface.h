@@ -1,10 +1,10 @@
-﻿// Copyright Hkt Studios, Inc. All Rights Reserved.
+// Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HktServiceInterfaces.h"
-#include "HktFlowInterfaces.generated.h"
+#include "HktServiceInterface.h"
+#include "HktSimulationInterface.generated.h"
 
 // ============================================================================
 // IHktFlow Interface

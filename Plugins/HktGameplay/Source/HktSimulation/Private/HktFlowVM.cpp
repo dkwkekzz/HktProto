@@ -1,6 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktFlowVM.h"
+#include "Core/HktSimulationStats.h"
 #include "GameFramework/Actor.h"
 
 FVector FFlowRegister::ResolveLocation(const FHktEntityManager* Mgr) const
@@ -25,6 +26,8 @@ FHktFlowVM::FHktFlowVM(UWorld* InWorld, FHktEntityManager* InMgr, FUnitHandle In
 
 void FHktFlowVM::Tick(float DeltaTime)
 {
+	SCOPE_CYCLE_COUNTER(STAT_VMExecution);
+
 	if (!Mgr || Regs.ProgramCounter >= Bytecode.Num()) return;
 
 	// 1. 블로킹 상태 처리
@@ -77,7 +80,9 @@ void FHktFlowVM::Tick(float DeltaTime)
 		uint8* DataPtr = &Bytecode[Regs.ProgramCounter + sizeof(FInstructionHeader)];
 		int32 NextPC = Regs.ProgramCounter + sizeof(FInstructionHeader) + Header->DataSize;
 		
-		FHktOpRegistry::Handlers[Header->Op](*this, DataPtr);
+		// Use new handler lookup
+		FHktOpHandler Handler = FHktOpRegistry::GetHandler(Header->Op);
+		Handler(*this, DataPtr);
 
 		Regs.ProgramCounter = NextPC;
 	}
@@ -85,6 +90,8 @@ void FHktFlowVM::Tick(float DeltaTime)
 
 void FHktFlowVM::Op_WaitTime(FHktFlowVM& VM, uint8* Data)
 {
+	SCOPE_CYCLE_COUNTER(STAT_Op_WaitTime);
+
 	float Duration = *reinterpret_cast<float*>(Data);
 	VM.Regs.WaitTimer = Duration;
 	VM.Regs.bBlocked = true;
@@ -169,24 +176,32 @@ void FHktFlowVM::Op_ModifyAttribute(FHktFlowVM& VM, uint8* Data)
 
 void FHktFlowVM::Op_ExplodeAndDamage(FHktFlowVM& VM, uint8* Data)
 {
+	SCOPE_CYCLE_COUNTER(STAT_Op_ExplodeAndDamage);
+
 	struct FParam { float Radius; float DirectDmg; float DotDmg; float DotDuration; uint8 LocReg; };
 	FParam* P = reinterpret_cast<FParam*>(Data);
 
 	FVector CenterLoc = VM.Regs.Get(P->LocReg).ResolveLocation(VM.Mgr);
 	
-	// 범위 검사: Manager의 DB 순회
-	int32 Num = VM.Mgr->Entities.Attributes.Num();
-	for (int32 i = 0; i < Num; ++i)
-	{
-		if (!VM.Mgr->Entities.IsActive[i]) continue;
-		
-		FUnitHandle TargetHandle(i, VM.Mgr->Entities.Generations[i]);
-		if (TargetHandle == VM.Regs.OwnerUnit) continue;
+	// [Optimized] Use spatial index for range query instead of linear search
+	TArray<FUnitHandle> AffectedUnits;
+	VM.Mgr->QueryUnitsInSphere(CenterLoc, P->Radius, AffectedUnits, true);
 
-		FVector TargetLoc = VM.Mgr->Entities.Locations[i];
-		if (FVector::DistSquared(CenterLoc, TargetLoc) <= (P->Radius * P->Radius))
+	// Apply damage to all units in range
+	for (const FUnitHandle& TargetHandle : AffectedUnits)
+	{
+		// Don't damage self
+		if (TargetHandle == VM.Regs.OwnerUnit)
 		{
-			VM.Mgr->Entities.Attributes[i].Modify(EHktAttribute::Health, -P->DirectDmg);
+			continue;
 		}
+
+		// Apply direct damage
+		if (FHktAttributeSet* Attrs = VM.Mgr->GetUnitAttrs(TargetHandle))
+		{
+			Attrs->Modify(EHktAttribute::Health, -P->DirectDmg);
+		}
+
+		// TODO: Apply DoT (would require a separate system for ongoing effects)
 	}
 }

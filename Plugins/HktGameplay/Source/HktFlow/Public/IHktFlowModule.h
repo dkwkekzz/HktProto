@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "HktFlowInterfaces.h"
+#include "HktFlowInterface.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 

@@ -1,11 +1,13 @@
 ﻿#pragma once
 
 #include "Subsystems/WorldSubsystem.h"
-#include "HktServiceInterfaces.h"
-#include "IHktCodexProvider.h"
-#include "IHktSelectionProvider.h"
-#include "IHktIntentEventProvider.h"
+#include "HktServiceInterface.h"
+#include "HktAssetInterface.h"
+#include "HktIntentInterface.h"
+#include "HktSimulationInterface.h"
 #include "IHktJobProvider.h"
+#include "IHktSelectionProvider.h"
+#include "IHktPlayerAttributeProvider.h"
 #include "HktServiceSubsystem.generated.h"
 
 /**
@@ -31,17 +33,21 @@ public:
 	void RegisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider);
 	void UnregisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider);
 
-	void RegisterCodexProvider(TScriptInterface<IHktCodexProvider> Provider);
-	void UnregisterCodexProvider(TScriptInterface<IHktCodexProvider> Provider);
+	void RegisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider);
+	void UnregisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider);
 
 	void RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 	void UnregisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 
+	void RegisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider);
+	void UnregisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider);
+
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
 	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider() const;
-	TScriptInterface<IHktCodexProvider> GetCodexProvider() const;
+	TScriptInterface<IHktAssetProvider> GetAssetProvider() const;
 	TScriptInterface<IHktJobProvider> GetJobProvider() const;
+	TScriptInterface<IHktPlayerAttributeProvider> GetPlayerAttributeProvider() const;
 
 private:
 	UPROPERTY()
@@ -51,8 +57,11 @@ private:
 	TScriptInterface<IHktIntentEventProvider> IntentEventProvider;
 
 	UPROPERTY()
-	TScriptInterface<IHktCodexProvider> CodexProvider;
+	TScriptInterface<IHktAssetProvider> AssetProvider;
 
 	UPROPERTY()
 	TScriptInterface<IHktJobProvider> JobProvider;
+
+	UPROPERTY()
+	TScriptInterface<IHktPlayerAttributeProvider> PlayerAttributeProvider;
 };

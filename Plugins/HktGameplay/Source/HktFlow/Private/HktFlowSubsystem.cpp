@@ -2,7 +2,7 @@
 
 #include "HktFlowSubsystem.h"
 #include "HktFlowBuilder.h"
-#include "HktIntentInterfaces.h"
+#include "HktIntentInterface.h"
 #include "HktServiceSubsystem.h"
 
 // ============================================================================

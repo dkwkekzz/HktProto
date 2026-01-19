@@ -2,8 +2,13 @@
 
 #include "HktSimulationSubsystem.h"
 #include "HktFlowBuilder.h"
-#include "HktIntentInterfaces.h"
+#include "HktIntentInterface.h"
 #include "HktServiceSubsystem.h"
+#include "Flow/FlowDefinitionRegistry.h"
+#include "Flow/IFlowDefinition.h"
+#include "VM/HktVMPool.h"
+#include "VM/HktBytecodePool.h"
+#include "Core/HktSimulationStats.h"
 #include "Engine/World.h"
 
 DEFINE_LOG_CATEGORY(LogHktSimulation);
@@ -12,18 +17,46 @@ void UHktSimulationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// HktServiceSubsystem 의존성 초기화
-	Collection.InitializeDependency<UHktServiceSubsystem>();
+	// HktServiceSubsystem 의존성 초기화 및 Provider 등록
+	if (UHktServiceSubsystem* Service = Collection.InitializeDependency<UHktServiceSubsystem>())
+	{
+		Service->RegisterPlayerAttributeProvider(this);
+	}
 
-	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationSubsystem Initialized"));
+	// Initialize VM pool
+	VMPool = MakeUnique<FHktVMPool>();
+	VMPool->SetMaxPoolSize(100);
+	VMPool->Prewarm(10); // Start with 10 VMs
+
+	// Prewarm bytecode pool
+	FBytecodePool::Prewarm(20);
+
+	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationSubsystem Initialized with object pooling"));
 }
 
 void UHktSimulationSubsystem::Deinitialize()
 {
+	// Unregister Provider
+	if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
+	{
+		Service->UnregisterPlayerAttributeProvider(this);
+	}
+
+	// Release all active VMs back to pool
+	for (FHktFlowVM* VM : ActiveVMs)
+	{
+		if (VMPool.IsValid())
+		{
+			VMPool->Release(VM);
+		}
+	}
 	ActiveVMs.Empty();
+	
+	VMPool.Reset();
+	FBytecodePool::Clear();
+	
 	ExternalToInternalMap.Empty();
-	InternalToExternalMap.Empty();
-	ChannelCursors.Empty();
+	LastProcessedFrame = 0;
 
 	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationSubsystem Deinitialized"));
 
@@ -42,6 +75,8 @@ void UHktSimulationSubsystem::Tick(float DeltaTime)
 
 	// 3. 완료된 VM 정리
 	CleanupFinishedVMs();
+	
+	// Note: Player 속성 동기화는 HktIntent에서 Provider를 폴링하여 처리
 }
 
 TStatId UHktSimulationSubsystem::GetStatId() const
@@ -72,6 +107,8 @@ UHktSimulationSubsystem* UHktSimulationSubsystem::Get(const UObject* WorldContex
 
 FUnitHandle UHktSimulationSubsystem::GetOrCreateInternalHandle(int32 ExternalUnitId, FVector Location, FRotator Rotation)
 {
+	SCOPE_CYCLE_COUNTER(STAT_HandleMapping);
+
 	// 이미 매핑이 있는지 확인
 	if (FUnitHandle* Found = ExternalToInternalMap.Find(ExternalUnitId))
 	{
@@ -87,34 +124,30 @@ FUnitHandle UHktSimulationSubsystem::GetOrCreateInternalHandle(int32 ExternalUni
 	FPlayerHandle OwnerPlayer; // TODO: 외부에서 플레이어 정보도 전달받아야 함
 	FUnitHandle NewHandle = EntityManager.AllocUnit(OwnerPlayer, Location, Rotation);
 
-	// 매핑 등록
+	// [Optimized] 매핑 등록 - 양방향 맵 대신 단방향 + EntityDB 사용
 	ExternalToInternalMap.Add(ExternalUnitId, NewHandle);
-	InternalToExternalMap.Add(NewHandle.Index, ExternalUnitId);
+	EntityManager.Entities.ExternalIds[NewHandle.Index] = ExternalUnitId;
+
+	// Update entity stats
+	int32 ActiveCount = 0;
+	for (bool bActive : EntityManager.Entities.IsActive)
+	{
+		if (bActive) ActiveCount++;
+	}
+	SET_DWORD_STAT(STAT_TotalEntities, EntityManager.Entities.Attributes.Num());
+	SET_DWORD_STAT(STAT_ActiveEntities, ActiveCount);
 
 	return NewHandle;
 }
 
 int32 UHktSimulationSubsystem::GetExternalUnitId(FUnitHandle InternalHandle) const
 {
-	if (const int32* Found = InternalToExternalMap.Find(InternalHandle.Index))
+	// [Optimized] O(1) 배열 접근으로 역방향 조회
+	if (EntityManager.IsUnitValid(InternalHandle))
 	{
-		return *Found;
+		return EntityManager.Entities.ExternalIds[InternalHandle.Index];
 	}
 	return INDEX_NONE;
-}
-
-int64 UHktSimulationSubsystem::GetChannelCursor(int32 ChannelId) const
-{
-	if (const int64* Cursor = ChannelCursors.Find(ChannelId))
-	{
-		return *Cursor;
-	}
-	return 0;
-}
-
-void UHktSimulationSubsystem::SetChannelCursor(int32 ChannelId, int64 NewCursor)
-{
-	ChannelCursors.Add(ChannelId, NewCursor);
 }
 
 void UHktSimulationSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
@@ -122,8 +155,8 @@ void UHktSimulationSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
 	// Subject의 내부 핸들 획득 (없으면 생성)
 	FUnitHandle SubjectHandle = GetOrCreateInternalHandle(Event.Subject.Value, Event.Location);
 
-	// VM 생성
-	TUniquePtr<FHktFlowVM> NewVM = MakeUnique<FHktFlowVM>(GetWorld(), &EntityManager, SubjectHandle);
+	// [Optimized] Acquire VM from pool instead of creating new
+	FHktFlowVM* NewVM = VMPool->Acquire(GetWorld(), &EntityManager, SubjectHandle);
 
 	// 이벤트에 따른 바이트코드 빌드
 	BuildBytecodeForEvent(*NewVM, Event);
@@ -131,14 +164,21 @@ void UHktSimulationSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
 	// 바이트코드가 비어있지 않으면 실행 큐에 추가
 	if (NewVM->Bytecode.Num() > 0)
 	{
-		ActiveVMs.Add(MoveTemp(NewVM));
+		ActiveVMs.Add(NewVM);
 		UE_LOG(LogHktSimulation, Verbose, TEXT("Queued VM for IntentEvent: %s (EventId: %d)"), 
 			*Event.EventTag.ToString(), Event.EventId);
+	}
+	else
+	{
+		// No bytecode generated, release VM back to pool immediately
+		VMPool->Release(NewVM);
 	}
 }
 
 void UHktSimulationSubsystem::ProcessIntentEvents(float DeltaTime)
 {
+	SCOPE_CYCLE_COUNTER(STAT_ProcessIntentEvents);
+
 	// ServiceSubsystem에서 IntentEventProvider 획득
 	UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
 	if (!Service)
@@ -152,72 +192,135 @@ void UHktSimulationSubsystem::ProcessIntentEvents(float DeltaTime)
 		return;
 	}
 
-	// 기본 채널에서 이벤트 가져오기
-	const int32 DefaultChannelId = 0;
-	TSharedPtr<IHktIntentChannel> Channel = Provider->GetChannel(DefaultChannelId);
-	if (!Channel)
-	{
-		return;
-	}
-
-	// [Sliding Window] 커서 이후의 새 이벤트만 조회
-	int64& MyCursor = ChannelCursors.FindOrAdd(DefaultChannelId, 0);
-	
-	TArray<FHktIntentEventEntry> NewEntries;
-	if (!Channel->FetchNewEvents(MyCursor, NewEntries))
+	// [Sliding Window] 마지막 처리 프레임 이후의 새 이벤트만 조회
+	TArray<FHktIntentEvent> NewEvents;
+	if (!Provider->FetchNewEvents(LastProcessedFrame, NewEvents))
 	{
 		return; // 새 이벤트 없음
 	}
 
 	// 이벤트 처리
-	for (const FHktIntentEventEntry& Entry : NewEntries)
+	for (const FHktIntentEvent& Event : NewEvents)
 	{
 		// 이벤트 처리 시도
-		ExecuteIntentEvent(Entry.EventData);
+		ExecuteIntentEvent(Event);
 
 		// [중요] 처리 성공 시 커서 업데이트
 		// 만약 처리 도중 실패하거나 yield 해야 한다면 커서를 업데이트하지 않음으로써
 		// 다음 프레임에 다시 시도할 수 있는 기회를 가짐 (재진입성 확보)
-		MyCursor = FMath::Max(MyCursor, Entry.SequenceId);
+		LastProcessedFrame = FMath::Max(LastProcessedFrame, Event.FrameNumber);
+		
+		INC_DWORD_STAT(STAT_EventsProcessed);
 	}
 
-	if (NewEntries.Num() > 0)
+	if (NewEvents.Num() > 0)
 	{
-		UE_LOG(LogHktSimulation, Verbose, TEXT("Processed %d events, Cursor updated to %lld"), 
-			NewEntries.Num(), MyCursor);
+		UE_LOG(LogHktSimulation, Verbose, TEXT("Processed %d events, Cursor updated to %d"), 
+			NewEvents.Num(), LastProcessedFrame);
 	}
 }
 
 void UHktSimulationSubsystem::TickActiveVMs(float DeltaTime)
 {
-	for (auto& VM : ActiveVMs)
+	SCOPE_CYCLE_COUNTER(STAT_TickVMs);
+
+	for (FHktFlowVM* VM : ActiveVMs)
 	{
-		if (VM.IsValid())
+		if (VM)
 		{
 			VM->Tick(DeltaTime);
 		}
 	}
+
+	// Update stats
+	SET_DWORD_STAT(STAT_ActiveVMs, ActiveVMs.Num());
 }
 
 void UHktSimulationSubsystem::CleanupFinishedVMs()
 {
-	ActiveVMs.RemoveAll([](const TUniquePtr<FHktFlowVM>& VM) 
+	SCOPE_CYCLE_COUNTER(STAT_CleanupFinishedVMs);
+
+	// [Optimized] Release finished VMs back to pool
+	for (int32 i = ActiveVMs.Num() - 1; i >= 0; --i)
 	{
-		return !VM.IsValid() || VM->Regs.ProgramCounter >= VM->Bytecode.Num();
-	});
+		FHktFlowVM* VM = ActiveVMs[i];
+		
+		if (!VM || VM->Regs.ProgramCounter >= VM->Bytecode.Num())
+		{
+			// VM finished execution, release it to pool
+			if (VM && VMPool.IsValid())
+			{
+				VMPool->Release(VM);
+			}
+			
+			ActiveVMs.RemoveAtSwap(i);
+		}
+	}
+
+	// Update pool stats
+	if (VMPool.IsValid())
+	{
+		int32 Total, Available, Active;
+		VMPool->GetStats(Total, Available, Active);
+		SET_DWORD_STAT(STAT_VMsPooled, Available);
+	}
+
+	int32 TotalBuffers, AvailableBuffers;
+	FBytecodePool::GetStats(TotalBuffers, AvailableBuffers);
+	SET_DWORD_STAT(STAT_BytecodeBuffersPooled, AvailableBuffers);
 }
 
 void UHktSimulationSubsystem::BuildBytecodeForEvent(FHktFlowVM& VM, const FHktIntentEvent& Event)
 {
+	SCOPE_CYCLE_COUNTER(STAT_BuildBytecode);
+
 	FHktFlowBuilder B(VM.Bytecode);
 
-	// EventTag에 따라 다른 바이트코드 빌드
-	// TODO: Flow 레지스트리와 연동하여 동적으로 바이트코드 생성
+	// [NEW] Try to use Flow Definition Registry first
+	IFlowDefinition* FlowDef = nullptr;
+	{
+		SCOPE_CYCLE_COUNTER(STAT_FlowRegistryLookup);
+		FlowDef = FFlowDefinitionRegistry::Find(Event.EventTag);
+	}
 	
-	FString TagString = Event.EventTag.ToString();
+	if (FlowDef)
+	{
+		// Validate event before building
+		if (FlowDef->ValidateEvent(Event))
+		{
+			// Prepare registers for the flow definition
+			if (Event.Target.IsValid())
+			{
+				FUnitHandle TargetHandle = GetOrCreateInternalHandle(Event.Target.Value, FVector::ZeroVector);
+				VM.Regs.Get(1).SetUnit(TargetHandle);
+			}
+			
+			// Set location in GPR[0]
+			VM.Regs.Get(0).SetVector(Event.Location);
 
-	// 예시: 태그에 따른 기본 처리
-	// 실제 구현에서는 Flow 정의 시스템과 연동
+			// Build bytecode using the registered flow definition
+			if (FlowDef->BuildBytecode(B, Event, &EntityManager))
+			{
+				UE_LOG(LogHktSimulation, Verbose, TEXT("Built bytecode using Flow Definition for tag: %s"), 
+					*Event.EventTag.ToString());
+				return; // Successfully built bytecode
+			}
+			else
+			{
+				UE_LOG(LogHktSimulation, Warning, TEXT("Flow Definition failed to build bytecode for tag: %s"), 
+					*Event.EventTag.ToString());
+			}
+		}
+		else
+		{
+			UE_LOG(LogHktSimulation, Warning, TEXT("Event validation failed for tag: %s"), 
+				*Event.EventTag.ToString());
+			return; // Don't fallback to legacy if validation fails
+		}
+	}
+
+	// [LEGACY FALLBACK] Old hardcoded system (will be removed in Phase 3)
+	FString TagString = Event.EventTag.ToString();
 	
 	if (TagString.Contains(TEXT("Attack")))
 	{
@@ -272,4 +375,105 @@ void UHktSimulationSubsystem::BuildBytecodeForEvent(FHktFlowVM& VM, const FHktIn
 	
 	// 바이트코드가 비어있으면 기본 no-op 추가 방지
 	// (빈 바이트코드는 VM 실행 큐에 추가하지 않음)
+}
+
+// ============================================================================
+// IHktPlayerAttributeProvider 구현
+// ============================================================================
+
+FOnPlayerAttributeChanged& UHktSimulationSubsystem::OnPlayerAttributeChanged()
+{
+	return OnPlayerAttributeChangedDelegate;
+}
+
+bool UHktSimulationSubsystem::GetPlayerAttributeSnapshot(const FHktPlayerHandle& PlayerHandle, FHktPlayerAttributeSnapshot& OutSnapshot) const
+{
+	if (!PlayerHandle.IsValid())
+	{
+		return false;
+	}
+
+	const int32 PlayerIndex = PlayerHandle.Value;
+	
+	if (!EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) ||
+		!EntityManager.Players.IsActive[PlayerIndex])
+	{
+		return false;
+	}
+
+	ConvertToSnapshot(PlayerIndex, EntityManager.Players.Attributes[PlayerIndex], OutSnapshot);
+	OutSnapshot.PlayerHandle = PlayerHandle;
+	
+	return true;
+}
+
+bool UHktSimulationSubsystem::ConsumeChangedPlayers(TArray<FHktPlayerAttributeSnapshot>& OutSnapshots)
+{
+	OutSnapshots.Reset();
+
+	const int32 NumPlayers = EntityManager.Players.Attributes.Num();
+	
+	for (int32 i = 0; i < NumPlayers; ++i)
+	{
+		// Fast check: skip if not dirty
+		if (!EntityManager.Players.IsDirty(i))
+		{
+			continue;
+		}
+
+		// Skip if not active
+		if (!EntityManager.Players.IsActive.IsValidIndex(i) || !EntityManager.Players.IsActive[i])
+		{
+			EntityManager.Players.ClearDirty(i);
+			continue;
+		}
+
+		// Create snapshot
+		FHktPlayerAttributeSnapshot Snapshot;
+		Snapshot.PlayerHandle.Value = i;
+		ConvertToSnapshot(i, EntityManager.Players.Attributes[i], Snapshot);
+		
+		OutSnapshots.Add(MoveTemp(Snapshot));
+
+		// Clear dirty flag
+		EntityManager.Players.ClearDirty(i);
+	}
+
+	return OutSnapshots.Num() > 0;
+}
+
+FHktPlayerHandle UHktSimulationSubsystem::RegisterPlayer()
+{
+	const int32 PlayerIndex = EntityManager.AllocPlayer();
+	
+	FHktPlayerHandle Handle;
+	Handle.Value = PlayerIndex;
+	
+	UE_LOG(LogHktSimulation, Log, TEXT("Registered new player with Handle: %d"), Handle.Value);
+	
+	return Handle;
+}
+
+void UHktSimulationSubsystem::UnregisterPlayer(const FHktPlayerHandle& PlayerHandle)
+{
+	if (!PlayerHandle.IsValid())
+	{
+		return;
+	}
+
+	EntityManager.FreePlayer(FPlayerHandle(PlayerHandle.Value));
+	
+	UE_LOG(LogHktSimulation, Log, TEXT("Unregistered player with Handle: %d"), PlayerHandle.Value);
+}
+
+void UHktSimulationSubsystem::ConvertToSnapshot(int32 PlayerIndex, const FHktAttributeSet& Attrs, FHktPlayerAttributeSnapshot& OutSnapshot) const
+{
+	OutSnapshot.AllAttributes.SetNumZeroed(static_cast<int32>(EHktAttributeType::Count));
+	
+	// EHktAttribute (Simulation internal) → EHktAttributeType (Service interface)
+	// 두 enum이 동일한 순서로 정의되어 있다고 가정
+	for (int32 i = 0; i < static_cast<int32>(EHktAttribute::Count); ++i)
+	{
+		OutSnapshot.AllAttributes[i] = Attrs.Values[i];
+	}
 }

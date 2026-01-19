@@ -13,7 +13,7 @@ class UTexture2D;
  * Contains UI information and execution rules.
  */
 UCLASS(BlueprintType)
-class HKTCODEX_API UHktActionDataAsset : public UPrimaryDataAsset
+class HKTASSET_API UHktActionDataAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 
@@ -38,4 +38,3 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Action")
 	float Range = 0.0f;
 };
-

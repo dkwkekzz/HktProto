@@ -5,14 +5,14 @@
 #include "GameplayTagContainer.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/DataAsset.h"
-#include "HktCodexSubsystem.generated.h"
+#include "HktAssetSubsystem.generated.h"
 
 /**
  * Subsystem to query DataAssets by GameplayTag.
  * Acts as a generic tag-based asset loader.
  */
 UCLASS()
-class HKTCODEX_API UHktCodexSubsystem : public UGameInstanceSubsystem
+class HKTASSET_API UHktAssetSubsystem : public UGameInstanceSubsystem
 {
     GENERATED_BODY()
 

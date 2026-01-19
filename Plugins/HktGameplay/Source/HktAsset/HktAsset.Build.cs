@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class HktCodex : ModuleRules
+public class HktAsset : ModuleRules
 {
-	public HktCodex(ReadOnlyTargetRules Target) : base(Target)
+	public HktAsset(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -42,4 +42,3 @@ public class HktCodex : ModuleRules
 		);
 	}
 }
-

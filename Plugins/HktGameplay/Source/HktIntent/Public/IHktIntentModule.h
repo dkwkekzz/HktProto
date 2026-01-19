@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "HktIntentInterfaces.h"
+#include "HktIntentInterface.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 

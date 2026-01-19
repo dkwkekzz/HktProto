@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Subsystems/WorldSubsystem.h"
-#include "HktIntentInterfaces.h"
+#include "HktIntentInterface.h"
 #include "HktIntentGroupManager.generated.h"
 
 /**

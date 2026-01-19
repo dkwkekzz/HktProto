@@ -2,7 +2,7 @@
 
 #include "Modules/ModuleManager.h"
 
-class FHktCodexModule : public IModuleInterface
+class FHktAssetModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
@@ -14,5 +14,4 @@ public:
 	}
 };
 
-IMPLEMENT_MODULE(FHktCodexModule, HktCodex)
-
+IMPLEMENT_MODULE(FHktAssetModule, HktAsset)

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Subsystems/WorldSubsystem.h"
-#include "HktFlowInterfaces.h"
+#include "HktFlowInterface.h"
 #include "IHktJobProvider.h"
 #include "HktFlowSubsystem.generated.h"
 

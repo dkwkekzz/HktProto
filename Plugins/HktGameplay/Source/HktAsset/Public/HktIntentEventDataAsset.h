@@ -12,7 +12,7 @@
  * Each asset handles one EventTag and specifies what effects to apply to Subjects and Targets.
  */
 UCLASS(BlueprintType)
-class HKTCODEX_API UHktIntentEventDataAsset : public UDataAsset
+class HKTASSET_API UHktIntentEventDataAsset : public UDataAsset
 {
 	GENERATED_BODY()
 

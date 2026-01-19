@@ -10,8 +10,9 @@ void UHktServiceSubsystem::Deinitialize()
 {
 	SelectionProvider = nullptr;
 	IntentEventProvider = nullptr;
-	CodexProvider = nullptr;
+	AssetProvider = nullptr;
 	JobProvider = nullptr;
+	PlayerAttributeProvider = nullptr;
 	Super::Deinitialize();
 }
 
@@ -50,16 +51,16 @@ void UHktServiceSubsystem::UnregisterIntentEventProvider(TScriptInterface<IHktIn
 	}
 }
 
-void UHktServiceSubsystem::RegisterCodexProvider(TScriptInterface<IHktCodexProvider> Provider)
+void UHktServiceSubsystem::RegisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider)
 {
-	CodexProvider = Provider;
+	AssetProvider = Provider;
 }
 
-void UHktServiceSubsystem::UnregisterCodexProvider(TScriptInterface<IHktCodexProvider> Provider)
+void UHktServiceSubsystem::UnregisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider)
 {
-	if (CodexProvider == Provider)
+	if (AssetProvider == Provider)
 	{
-		CodexProvider = nullptr;
+		AssetProvider = nullptr;
 	}
 }
 
@@ -73,9 +74,9 @@ TScriptInterface<IHktIntentEventProvider> UHktServiceSubsystem::GetIntentEventPr
 	return IntentEventProvider;
 }
 
-TScriptInterface<IHktCodexProvider> UHktServiceSubsystem::GetCodexProvider() const
+TScriptInterface<IHktAssetProvider> UHktServiceSubsystem::GetAssetProvider() const
 {
-	return CodexProvider;
+	return AssetProvider;
 }
 
 void UHktServiceSubsystem::RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider)
@@ -94,4 +95,22 @@ void UHktServiceSubsystem::UnregisterJobProvider(TScriptInterface<IHktJobProvide
 TScriptInterface<IHktJobProvider> UHktServiceSubsystem::GetJobProvider() const
 {
 	return JobProvider;
+}
+
+void UHktServiceSubsystem::RegisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider)
+{
+	PlayerAttributeProvider = Provider;
+}
+
+void UHktServiceSubsystem::UnregisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider)
+{
+	if (PlayerAttributeProvider == Provider)
+	{
+		PlayerAttributeProvider = nullptr;
+	}
+}
+
+TScriptInterface<IHktPlayerAttributeProvider> UHktServiceSubsystem::GetPlayerAttributeProvider() const
+{
+	return PlayerAttributeProvider;
 }

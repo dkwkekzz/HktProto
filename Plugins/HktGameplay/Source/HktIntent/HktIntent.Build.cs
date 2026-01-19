@@ -35,7 +35,7 @@ public class HktIntent : ModuleRules
 			new string[]
 			{
 				"HktService",
-				"HktCodex"
+				"HktAsset"
 			}
 		);
 		

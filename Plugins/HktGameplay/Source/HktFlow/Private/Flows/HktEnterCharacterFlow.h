@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "HktFlowInterfaces.h"
+#include "HktFlowInterface.h"
 #include "HktEnterCharacterBehavior.generated.h"
 
 /**

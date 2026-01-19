@@ -1,11 +1,11 @@
-#include "HktCodexSubsystem.h"
+#include "HktAssetSubsystem.h"
 #include "HktServiceSubsystem.h"
 #include "Engine/AssetManager.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "HktActionDataAsset.h" // 인덱싱 대상 클래스 (필요 시 UDataAsset 등으로 변경 가능)
 
-void UHktCodexSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UHktAssetSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 
@@ -13,14 +13,14 @@ void UHktCodexSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     BuildAssetIndex();
 }
 
-void UHktCodexSubsystem::Deinitialize()
+void UHktAssetSubsystem::Deinitialize()
 {
     AssetIndex.Empty();
     bIsIndexBuilt = false;
     Super::Deinitialize();
 }
 
-void UHktCodexSubsystem::QueryDataAssetByTag(const FGameplayTag& InTag, FOnQueryDataComplete Callback) const
+void UHktAssetSubsystem::QueryDataAssetByTag(const FGameplayTag& InTag, FOnQueryDataComplete Callback) const
 {
     // 1. 유효하지 않은 태그 처리
     if (!InTag.IsValid())
@@ -60,7 +60,7 @@ void UHktCodexSubsystem::QueryDataAssetByTag(const FGameplayTag& InTag, FOnQuery
     );
 }
 
-void UHktCodexSubsystem::BuildAssetIndex()
+void UHktAssetSubsystem::BuildAssetIndex()
 {
     if (bIsIndexBuilt)
     {
@@ -93,7 +93,7 @@ void UHktCodexSubsystem::BuildAssetIndex()
                 if (AssetIndex.Contains(ActionTag))
                 {
                     // 어떤 에셋이 덮어쓰여지는지 로그로 명확히 남겨 디버깅을 돕습니다.
-                    UE_LOG(LogTemp, Warning, TEXT("UHktCodexSubsystem: Duplicate Tag [%s] detected. Asset [%s] will overwrite existing entry."), 
+                    UE_LOG(LogTemp, Warning, TEXT("UHktAssetSubsystem: Duplicate Tag [%s] detected. Asset [%s] will overwrite existing entry."), 
                         *ActionTag.ToString(), 
                         *Data.AssetName.ToString());
                 }

@@ -41,7 +41,7 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "HktCodex",
+			"Name": "HktAsset",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}

@@ -1,164 +1,33 @@
 #include "HktIntentSubsystem.h"
 #include "HktIntentEventComponent.h"
+#include "HktAttributeComponent.h"
+#include "HktIntentPlayerState.h"
 #include "HktServiceSubsystem.h"
 
-namespace Internal
-{
-    /**
-     * Sliding Window 기반 Intent Channel 구현
-     * - 이벤트를 즉시 삭제하지 않고 일정 시간/개수 동안 히스토리에 유지
-     * - 소비자는 커서(LastProcessedSeqId)를 기반으로 새 이벤트만 조회
-     * - Late Join 유저도 히스토리에서 이벤트를 가져와 따라잡을 수 있음
-     */
-    class FSlidingWindowChannel : public IHktIntentChannel
-    {
-    public:
-        FSlidingWindowChannel(int32 InMaxBufferSize = 64, double InRetentionTime = 5.0)
-            : MaxBufferSize(InMaxBufferSize)
-            , RetentionTime(InRetentionTime)
-            , GlobalSequenceGenerator(0)
-        {
-            EventHistory.Reserve(MaxBufferSize);
-        }
-
-        virtual ~FSlidingWindowChannel() {}
-
-        // --- IHktIntentChannel 구현 ---
-
-        virtual bool AddEvent(const FHktIntentEvent& InEvent) override
-        {
-            // 시퀀스 ID 발급
-            FHktIntentEventEntry Entry(InEvent, ++GlobalSequenceGenerator);
-            
-            EventHistory.Add(Entry);
-            
-            // 오래된 이벤트 정리
-            CleanupOldEvents();
-            
-            UE_LOG(LogTemp, Verbose, TEXT("[SlidingWindowChannel] Added Event SeqId: %lld, EventId: %d, Tag: %s"), 
-                Entry.SequenceId, InEvent.EventId, *InEvent.EventTag.ToString());
-            
-            return true;
-        }
-
-        virtual bool RemoveEvent(const FHktIntentEvent& InEvent) override
-        {
-            // 이벤트 ID로 찾아서 제거 (논리적 제거 - 실제로는 Cleanup에서 처리)
-            int32 RemovedCount = EventHistory.RemoveAll([&](const FHktIntentEventEntry& Entry) {
-                return Entry.EventData.EventId == InEvent.EventId;
-            });
-            return RemovedCount > 0;
-        }
-
-        virtual bool UpdateEvent(const FHktIntentEvent& InNewEvent) override
-        {
-            // 기존 이벤트를 찾아서 업데이트
-            for (FHktIntentEventEntry& Entry : EventHistory)
-            {
-                if (Entry.EventData.EventId == InNewEvent.EventId)
-                {
-                    Entry.EventData = InNewEvent;
-                    Entry.Timestamp = FPlatformTime::Seconds(); // 타임스탬프 갱신
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        virtual bool FetchNewEvents(int64 InLastProcessedSeqId, TArray<FHktIntentEventEntry>& OutEntries) override
-        {
-            OutEntries.Reset();
-            
-            for (const FHktIntentEventEntry& Entry : EventHistory)
-            {
-                // 마지막으로 처리한 것보다 큰 ID만 가져옴 (중복 처리 방지)
-                if (Entry.SequenceId > InLastProcessedSeqId)
-                {
-                    OutEntries.Add(Entry);
-                }
-            }
-            
-            return OutEntries.Num() > 0;
-        }
-
-        virtual int64 GetLatestSequenceId() const override
-        {
-            return GlobalSequenceGenerator;
-        }
-
-        virtual int64 GetOldestSequenceId() const override
-        {
-            if (EventHistory.Num() == 0)
-            {
-                return 0;
-            }
-            return EventHistory[0].SequenceId;
-        }
-
-        // --- Legacy (하위 호환용) ---
-        
-        PRAGMA_DISABLE_DEPRECATION_WARNINGS
-        virtual bool FlushEvents(TArray<FHktIntentEvent>& OutEvents) override
-        {
-            if (EventHistory.Num() == 0)
-            {
-                return false;
-            }
-
-            OutEvents.Reset();
-            for (const FHktIntentEventEntry& Entry : EventHistory)
-            {
-                OutEvents.Add(Entry.EventData);
-            }
-            
-            // FlushEvents는 하위 호환을 위해 유지하지만, 이벤트를 지우지 않음
-            // 대신 경고 로그 출력
-            UE_LOG(LogTemp, Warning, TEXT("[SlidingWindowChannel] FlushEvents is deprecated. Use FetchNewEvents instead."));
-            
-            return true;
-        }
-        PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-    private:
-        void CleanupOldEvents()
-        {
-            const double CurrentTime = FPlatformTime::Seconds();
-            
-            // 1. 시간 기반 만료 처리
-            EventHistory.RemoveAll([&](const FHktIntentEventEntry& Entry) {
-                return (CurrentTime - Entry.Timestamp) > RetentionTime;
-            });
-            
-            // 2. 버퍼 크기 기반 만료 처리 (오래된 것부터 제거)
-            while (EventHistory.Num() > MaxBufferSize)
-            {
-                EventHistory.RemoveAt(0);
-            }
-        }
-
-    private:
-        TArray<FHktIntentEventEntry> EventHistory; // 절대 바로 지우지 않음!
-        int64 GlobalSequenceGenerator;
-        int32 MaxBufferSize;
-        double RetentionTime; // 초 단위
-    };
-}
+DECLARE_STATS_GROUP(TEXT("HktIntent"), STATGROUP_HktIntent, STATCAT_Advanced);
+DECLARE_CYCLE_STAT(TEXT("IntentSubsystem Tick"), STAT_IntentSubsystemTick, STATGROUP_HktIntent);
+DECLARE_CYCLE_STAT(TEXT("SyncAttributesFromProvider"), STAT_SyncAttributesFromProvider, STATGROUP_HktIntent);
 
 void UHktIntentSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     
-    ChannelMap.Reset();
+    EventHistory.Reset();
+    EventHistory.Reserve(MaxBufferSize);
     
     if (UHktServiceSubsystem* Service = Collection.InitializeDependency<UHktServiceSubsystem>())
     {
         Service->RegisterIntentEventProvider(this);
+        
+        // Provider 델리게이트 바인딩 (Provider가 등록되면 바인딩)
+        // Note: Provider는 HktSimulation이 등록하므로 나중에 바인딩됨
     }
 }
 
 void UHktIntentSubsystem::Deinitialize()
 {
-    ChannelMap.Reset();
+    EventHistory.Reset();
+    PlayerHandleToComponent.Reset();
 
     if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
     {
@@ -168,22 +37,215 @@ void UHktIntentSubsystem::Deinitialize()
     Super::Deinitialize();
 }
 
+void UHktIntentSubsystem::Tick(float DeltaTime)
+{
+    SCOPE_CYCLE_COUNTER(STAT_IntentSubsystemTick);
+    
+    // 서버에서만 속성 동기화 (Simulation → Component)
+    if (GetWorld() && GetWorld()->GetNetMode() != NM_Client)
+    {
+        SyncAttributesFromProvider();
+    }
+}
+
+TStatId UHktIntentSubsystem::GetStatId() const
+{
+    RETURN_QUICK_DECLARE_CYCLE_STAT(UHktIntentSubsystem, STATGROUP_HktIntent);
+}
+
 UHktIntentSubsystem* UHktIntentSubsystem::Get(UWorld* World)
 {
     return World->GetSubsystem<UHktIntentSubsystem>();
 }
 
-TSharedRef<IHktIntentChannel> UHktIntentSubsystem::CreateOrGetChannel(int32 InChannelId)
+bool UHktIntentSubsystem::AddEvent(const FHktIntentEvent& InEvent)
 {
-    return ChannelMap.FindOrAdd(InChannelId, MakeShared<Internal::FSlidingWindowChannel>());
+    EventHistory.Add(InEvent);
+    
+    // 오래된 이벤트 정리
+    CleanupOldEvents(InEvent.FrameNumber);
+    
+    UE_LOG(LogTemp, Verbose, TEXT("[HktIntentSubsystem] Added Event Frame: %d, EventId: %d, Tag: %s"), 
+        InEvent.FrameNumber, InEvent.EventId, *InEvent.EventTag.ToString());
+    
+    return true;
 }
 
-TSharedPtr<IHktIntentChannel> UHktIntentSubsystem::GetChannel(int32 InChannelId)
+bool UHktIntentSubsystem::RemoveEvent(const FHktIntentEvent& InEvent)
 {
-    if (TSharedRef<IHktIntentChannel>* ChannelPtr = ChannelMap.Find(InChannelId))
+    // 이벤트 ID로 찾아서 제거
+    int32 RemovedCount = EventHistory.RemoveAll([&](const FHktIntentEvent& Event) {
+        return Event.EventId == InEvent.EventId;
+    });
+    return RemovedCount > 0;
+}
+
+bool UHktIntentSubsystem::UpdateEvent(const FHktIntentEvent& InNewEvent)
+{
+    // 기존 이벤트를 찾아서 업데이트
+    for (FHktIntentEvent& Event : EventHistory)
     {
-        return *ChannelPtr;
+        if (Event.EventId == InNewEvent.EventId)
+        {
+            Event = InNewEvent;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool UHktIntentSubsystem::FetchNewEvents(int32 InLastProcessedFrame, TArray<FHktIntentEvent>& OutEvents)
+{
+    OutEvents.Reset();
+    
+    for (const FHktIntentEvent& Event : EventHistory)
+    {
+        // 마지막으로 처리한 프레임보다 큰 것만 가져옴 (중복 처리 방지)
+        if (Event.FrameNumber > InLastProcessedFrame)
+        {
+            OutEvents.Add(Event);
+        }
+    }
+    
+    return OutEvents.Num() > 0;
+}
+
+int32 UHktIntentSubsystem::GetLatestFrameNumber() const
+{
+    if (EventHistory.Num() == 0)
+    {
+        return 0;
+    }
+    return EventHistory.Last().FrameNumber;
+}
+
+int32 UHktIntentSubsystem::GetOldestFrameNumber() const
+{
+    if (EventHistory.Num() == 0)
+    {
+        return 0;
+    }
+    return EventHistory[0].FrameNumber;
+}
+
+void UHktIntentSubsystem::CleanupOldEvents(int32 CurrentFrame)
+{
+    // 1. 프레임 기반 만료 처리
+    const int32 ExpireFrame = CurrentFrame - RetentionFrames;
+    EventHistory.RemoveAll([&](const FHktIntentEvent& Event) {
+        return Event.FrameNumber < ExpireFrame;
+    });
+    
+    // 2. 버퍼 크기 기반 만료 처리 (오래된 것부터 제거)
+    while (EventHistory.Num() > MaxBufferSize)
+    {
+        EventHistory.RemoveAt(0);
+    }
+}
+
+// ============================================================================
+// Player Attribute Synchronization
+// ============================================================================
+
+void UHktIntentSubsystem::RegisterPlayerState(AHktIntentPlayerState* PlayerState)
+{
+    if (!PlayerState || !PlayerState->GetAttributeComponent())
+    {
+        return;
     }
 
+    UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
+    if (!Service)
+    {
+        return;
+    }
+
+    // Simulation의 Provider를 통해 플레이어 등록
+    IHktPlayerAttributeProvider* Provider = Service->GetPlayerAttributeProvider().GetInterface();
+    if (!Provider)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HktIntentSubsystem] PlayerAttributeProvider not available. Player registration deferred."));
+        return;
+    }
+
+    // Simulation에 플레이어 등록
+    FHktPlayerHandle Handle = Provider->RegisterPlayer();
+    
+    // PlayerState에 핸들 설정
+    PlayerState->SetPlayerHandle(Handle);
+
+    // Component 매핑 추가
+    PlayerHandleToComponent.Add(Handle.Value, PlayerState->GetAttributeComponent());
+
+    UE_LOG(LogTemp, Log, TEXT("[HktIntentSubsystem] Registered PlayerState with Handle: %d"), Handle.Value);
+}
+
+void UHktIntentSubsystem::UnregisterPlayerState(AHktIntentPlayerState* PlayerState)
+{
+    if (!PlayerState)
+    {
+        return;
+    }
+
+    FHktPlayerHandle Handle = PlayerState->GetPlayerHandle();
+    if (!Handle.IsValid())
+    {
+        return;
+    }
+
+    // 매핑 제거
+    PlayerHandleToComponent.Remove(Handle.Value);
+
+    // Simulation에서 등록 해제
+    UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
+    if (Service)
+    {
+        if (IHktPlayerAttributeProvider* Provider = Service->GetPlayerAttributeProvider().GetInterface())
+        {
+            Provider->UnregisterPlayer(Handle);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[HktIntentSubsystem] Unregistered PlayerState with Handle: %d"), Handle.Value);
+}
+
+void UHktIntentSubsystem::SyncAttributesFromProvider()
+{
+    SCOPE_CYCLE_COUNTER(STAT_SyncAttributesFromProvider);
+
+    UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
+    if (!Service)
+    {
+        return;
+    }
+
+    IHktPlayerAttributeProvider* Provider = Service->GetPlayerAttributeProvider().GetInterface();
+    if (!Provider)
+    {
+        return;
+    }
+
+    // Dirty 플레이어 스냅샷 수신
+    TArray<FHktPlayerAttributeSnapshot> ChangedSnapshots;
+    if (Provider->ConsumeChangedPlayers(ChangedSnapshots))
+    {
+        for (const FHktPlayerAttributeSnapshot& Snapshot : ChangedSnapshots)
+        {
+            // 해당 핸들의 Component 찾기
+            if (UHktAttributeComponent* Component = FindComponentByHandle(Snapshot.PlayerHandle))
+            {
+                // 스냅샷 적용 (FFastArraySerializer가 자동으로 델타 리플리케이션)
+                Component->ApplyAttributeSnapshot(Snapshot);
+            }
+        }
+    }
+}
+
+UHktAttributeComponent* UHktIntentSubsystem::FindComponentByHandle(const FHktPlayerHandle& Handle) const
+{
+    if (const TWeakObjectPtr<UHktAttributeComponent>* Found = PlayerHandleToComponent.Find(Handle.Value))
+    {
+        return Found->Get();
+    }
     return nullptr;
 }

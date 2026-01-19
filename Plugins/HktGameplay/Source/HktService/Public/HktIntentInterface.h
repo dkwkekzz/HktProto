@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HktServiceInterfaces.h"
-#include "HktIntentInterfaces.generated.h"
+#include "HktServiceInterface.h"
+#include "HktIntentInterface.generated.h"
 
 /**
  * [Intent Event]
@@ -61,46 +61,6 @@ struct FHktIntentEvent
     }
 };
 
-/**
- * [Intent Event Entry]
- * 이벤트에 시퀀스 ID와 타임스탬프를 추가한 Sliding Window 엔트리
- * - SequenceId: 서버에서 발급하는 고유 번호 (1, 2, 3...)
- * - Timestamp: 생성 시간 (오래된 이벤트 만료 처리용)
- */
-USTRUCT(BlueprintType)
-struct FHktIntentEventEntry
-{
-	GENERATED_BODY()
-
-	FHktIntentEventEntry()
-		: SequenceId(0)
-		, Timestamp(0.0)
-	{}
-
-	FHktIntentEventEntry(const FHktIntentEvent& InEvent, int64 InSequenceId)
-		: EventData(InEvent)
-		, SequenceId(InSequenceId)
-		, Timestamp(FPlatformTime::Seconds())
-	{}
-
-	// 이벤트 고유 데이터
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FHktIntentEvent EventData;
-
-	// 이 이벤트의 고유 번호 (서버에서 발급 1, 2, 3...)
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	int64 SequenceId;
-
-	// 생성된 시간 (오래된 이벤트 만료 처리용)
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	double Timestamp;
-
-	bool operator==(const FHktIntentEventEntry& Other) const
-	{
-		return SequenceId == Other.SequenceId;
-	}
-};
-
 // --- 이벤트 그룹 (외부 제공용 컨테이너) ---
 USTRUCT(BlueprintType)
 struct FHktIntentEventGroup
@@ -119,8 +79,8 @@ struct FHktIntentEventGroup
     TArray<FHktIntentEvent> Events;
 };
 
-UINTERFACE(MinimalAPI)
-class UHktIntentChannel : public UInterface
+UINTERFACE(MinimalAPI, BlueprintType)
+class UHktIntentEventProvider : public UInterface
 {
 	GENERATED_BODY()
 };
@@ -128,15 +88,13 @@ class UHktIntentChannel : public UInterface
 /**
  * Interface for a system that provides Intent Events to consumers (Simulation).
  * Implemented by HktIntent module.
- *
- * Channel: 함께 동기화가 필요한 이벤트 그룹
  * 
  * Sliding Window 방식:
  * - 이벤트는 바로 삭제되지 않고 일정 시간/개수 동안 유지됨
- * - 소비자는 자신의 커서(LastProcessedSeqId) 이후의 이벤트만 가져감
+ * - 소비자는 자신의 커서(LastProcessedFrame) 이후의 이벤트만 가져감
  * - Late Join 유저도 히스토리에서 이벤트를 가져와 따라잡을 수 있음
  */
-class IHktIntentChannel
+class HKTSERVICE_API IHktIntentEventProvider
 {
 	GENERATED_BODY()
 
@@ -152,21 +110,15 @@ public:
 
 	/**
 	 * [Sliding Window] 커서 기반 이벤트 조회
-	 * @param InLastProcessedSeqId 마지막으로 처리한 시퀀스 ID (이후의 이벤트만 반환)
-	 * @param OutEntries 새로 처리해야 할 이벤트 목록
+	 * @param InLastProcessedFrame 마지막으로 처리한 프레임 번호 (이후의 이벤트만 반환)
+	 * @param OutEvents 새로 처리해야 할 이벤트 목록
 	 * @return 새 이벤트가 있으면 true
 	 */
-	virtual bool FetchNewEvents(int64 InLastProcessedSeqId, TArray<FHktIntentEventEntry>& OutEntries) = 0;
+	virtual bool FetchNewEvents(int32 InLastProcessedFrame, TArray<FHktIntentEvent>& OutEvents) = 0;
 
-	/** 현재 히스토리의 가장 최신 시퀀스 ID 반환 */
-	virtual int64 GetLatestSequenceId() const = 0;
+	/** 현재 히스토리의 가장 최신 프레임 번호 반환 */
+	virtual int32 GetLatestFrameNumber() const = 0;
 
-	/** 현재 히스토리의 가장 오래된 시퀀스 ID 반환 (Late Join 시 시작점) */
-	virtual int64 GetOldestSequenceId() const = 0;
-
-	// --- Legacy (하위 호환용, 사용 자제) ---
-	
-	/** [DEPRECATED] 외부 시스템에서 호출하여 변경된 이벤트 히스토리를 가져가고 내부 버퍼를 비웁니다. */
-	UE_DEPRECATED(5.0, "Use FetchNewEvents instead for Sliding Window pattern")
-	virtual bool FlushEvents(TArray<FHktIntentEvent>& OutEvents) = 0;
+	/** 현재 히스토리의 가장 오래된 프레임 번호 반환 (Late Join 시 시작점) */
+	virtual int32 GetOldestFrameNumber() const = 0;
 };
