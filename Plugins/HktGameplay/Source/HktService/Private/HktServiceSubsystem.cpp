@@ -1,4 +1,4 @@
-﻿#include "HktServiceSubsystem.h"
+#include "HktServiceSubsystem.h"
 #include "Engine/World.h"
 
 void UHktServiceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -12,7 +12,6 @@ void UHktServiceSubsystem::Deinitialize()
 	IntentEventProvider = nullptr;
 	AssetProvider = nullptr;
 	JobProvider = nullptr;
-	PlayerAttributeProvider = nullptr;
 	Super::Deinitialize();
 }
 
@@ -95,22 +94,4 @@ void UHktServiceSubsystem::UnregisterJobProvider(TScriptInterface<IHktJobProvide
 TScriptInterface<IHktJobProvider> UHktServiceSubsystem::GetJobProvider() const
 {
 	return JobProvider;
-}
-
-void UHktServiceSubsystem::RegisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider)
-{
-	PlayerAttributeProvider = Provider;
-}
-
-void UHktServiceSubsystem::UnregisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider)
-{
-	if (PlayerAttributeProvider == Provider)
-	{
-		PlayerAttributeProvider = nullptr;
-	}
-}
-
-TScriptInterface<IHktPlayerAttributeProvider> UHktServiceSubsystem::GetPlayerAttributeProvider() const
-{
-	return PlayerAttributeProvider;
 }

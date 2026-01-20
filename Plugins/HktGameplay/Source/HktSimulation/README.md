@@ -6,13 +6,29 @@ HktSimulation은 결정론적 게임 시뮬레이션을 담당하는 **순수 �
 IntentEvent를 입력으로 받아 바이트코드 VM을 통해 실행하며, 엔티티/플레이어 상태를 관리합니다.
 
 **중요**: 이 모듈은 Unreal 네트워킹(Replication)과 직접 연동하지 않습니다.
-외부 연동(Component, Replication)은 `HktIntent` 모듈에서 `IHktPlayerAttributeProvider` 인터페이스를 통해 처리합니다.
+외부 연동(Component, Replication)은 `HktIntent` 모듈에서 `IHktAttributeSink` 인터페이스를 통해 처리합니다.
 
 ## 핵심 아키텍처
 
+**의존성 방향**: HktIntent → HktSimulation (단방향)
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
+│ HktIntent (Unreal 통합)                                     │
+│                                                             │
+│  PlayerState → AttributeComponent (FFastArraySerializer)   │
+│                     ↑                                       │
+│  IntentSubsystem : IHktAttributeSink 구현                  │
+│                     ↑ (Sink 등록)                          │
+└─────────────────────────────────────────────────────────────┘
+                      │
+            HktService (인터페이스 정의)
+            IHktAttributeSink
+                      │
+┌─────────────────────────────────────────────────────────────┐
 │ HktSimulation (순수 로직)                                   │
+│                                                             │
+│  SetPlayerAttribute() → Sink->PushAttribute() 즉시 호출   │
 │                                                             │
 │  IntentEvent → FlowRegistry → FlowBuilder → Bytecode       │
 │                                    ↓                        │
@@ -23,54 +39,40 @@ IntentEvent를 입력으로 받아 바이트코드 VM을 통해 실행하며, �
 │                    EntityManager ← SpatialIndex             │
 │                         ↓      ↓                            │
 │               PlayerDatabase  EntityDatabase                │
-│                         ↓                                   │
-│           IHktPlayerAttributeProvider (인터페이스 노출)     │
 └─────────────────────────────────────────────────────────────┘
-                            ↓
-                  HktService (중개 레이어)
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│ HktIntent (Unreal 통합)                                     │
-│                                                             │
-│  IntentSubsystem → Provider 구독 → AttributeComponent      │
-│                                    ↓                        │
-│                           FFastArraySerializer              │
-│                                    ↓                        │
-│                           Replication → Client              │
-└─────────────────────────────────────────────────────────────┘
+```
+
+**데이터 흐름 (즉시 적용, Commit 불필요)**:
+```
+Simulation.SetPlayerAttribute()
+     ↓ Sink->PushAttribute() 즉시 호출
+IntentSubsystem (IHktAttributeSink)
+     ↓ Component.SetAttribute()
+AttributeComponent (FFastArraySerializer)
+     ↓ 자동 델타 리플리케이션
+Client
 ```
 
 ## 주요 컴포넌트
 
 ### 1. UHktSimulationSubsystem
-**책임**: 시뮬레이션 생명주기 관리 + **IHktPlayerAttributeProvider 구현**
+**책임**: 시뮬레이션 생명주기 관리
 
 - IntentEvent 처리 (Sliding Window)
 - VM 생성 및 실행
 - Entity/Handle 매핑 관리
-- **Player 속성 변경 사항 제공** (Provider 인터페이스)
+- **Player 속성 변경 시 Sink를 통해 즉시 전달**
 
 **사용 예시**:
 ```cpp
 UHktSimulationSubsystem* Sim = UHktSimulationSubsystem::Get(WorldContext);
-FUnitHandle Unit = Sim->GetOrCreateInternalHandle(ExternalId, Location);
-```
 
-**Provider 사용 (HktIntent에서)**:
-```cpp
-// HktServiceSubsystem을 통해 Provider 접근
-IHktPlayerAttributeProvider* Provider = Service->GetPlayerAttributeProvider().GetInterface();
+// 플레이어 등록
+FHktPlayerHandle PlayerHandle = Sim->RegisterPlayer();
 
-// 변경된 플레이어 속성 수신
-TArray<FHktPlayerAttributeSnapshot> Snapshots;
-if (Provider->ConsumeChangedPlayers(Snapshots))
-{
-    for (const auto& Snapshot : Snapshots)
-    {
-        // AttributeComponent에 적용
-        Component->ApplyAttributeSnapshot(Snapshot);
-    }
-}
+// 속성 변경 (즉시 Intent에 전달됨, Commit 불필요)
+Sim->SetPlayerAttribute(PlayerHandle, EHktAttributeType::Health, 80.0f);
+Sim->ModifyPlayerAttribute(PlayerHandle, EHktAttributeType::Mana, -10.0f);
 ```
 
 ### 2. Flow Definition System

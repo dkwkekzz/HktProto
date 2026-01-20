@@ -38,7 +38,7 @@ void FHktAttributeContainer::SetAttribute(EHktAttributeType Type, float NewValue
 	
 	if (ItemIdx != INDEX_NONE)
 	{
-		// 기존 항목 업데이트
+		// 기존 항목 업데이트 (값이 변경된 경우에만)
 		if (!FMath::IsNearlyEqual(Items[ItemIdx].Value, NewValue))
 		{
 			Items[ItemIdx].Value = NewValue;
@@ -51,6 +51,14 @@ void FHktAttributeContainer::SetAttribute(EHktAttributeType Type, float NewValue
 		FHktAttributeItem NewItem(Type, NewValue);
 		Items.Add(NewItem);
 		MarkArrayDirty();
+	}
+}
+
+void FHktAttributeContainer::SetAllAttributes(const TArray<float>& Values)
+{
+	for (int32 i = 0; i < Values.Num() && i < static_cast<int32>(EHktAttributeType::Count); ++i)
+	{
+		SetAttribute(static_cast<EHktAttributeType>(i), Values[i]);
 	}
 }
 
@@ -74,26 +82,6 @@ void FHktAttributeContainer::InitializeDefaults()
 	Items.Add(FHktAttributeItem(EHktAttributeType::MoveSpeed, 600.0f));
 	
 	MarkArrayDirty();
-}
-
-void FHktAttributeContainer::ApplySnapshot(const FHktPlayerAttributeSnapshot& Snapshot)
-{
-	// ChangedAttributes가 있으면 그것만 적용 (최적화)
-	if (Snapshot.ChangedAttributes.Num() > 0)
-	{
-		for (const FHktAttributeEntry& Entry : Snapshot.ChangedAttributes)
-		{
-			SetAttribute(Entry.AttributeType, Entry.Value);
-		}
-	}
-	// ChangedAttributes가 비어있으면 AllAttributes 전체 적용
-	else if (Snapshot.AllAttributes.Num() > 0)
-	{
-		for (int32 i = 0; i < Snapshot.AllAttributes.Num() && i < static_cast<int32>(EHktAttributeType::Count); ++i)
-		{
-			SetAttribute(static_cast<EHktAttributeType>(i), Snapshot.AllAttributes[i]);
-		}
-	}
 }
 
 int32 FHktAttributeContainer::FindItemIndex(EHktAttributeType Type) const
@@ -148,14 +136,20 @@ void UHktAttributeComponent::SetPlayerHandle(const FHktPlayerHandle& InHandle)
 	}
 }
 
-void UHktAttributeComponent::ApplyAttributeSnapshot(const FHktPlayerAttributeSnapshot& Snapshot)
+void UHktAttributeComponent::SetAttribute(EHktAttributeType Type, float Value)
 {
-	if (GetOwnerRole() != ROLE_Authority)
+	if (GetOwnerRole() == ROLE_Authority)
 	{
-		return;
+		AttributeContainer.SetAttribute(Type, Value);
 	}
+}
 
-	AttributeContainer.ApplySnapshot(Snapshot);
+void UHktAttributeComponent::SetAllAttributes(const TArray<float>& Values)
+{
+	if (GetOwnerRole() == ROLE_Authority)
+	{
+		AttributeContainer.SetAllAttributes(Values);
+	}
 }
 
 void UHktAttributeComponent::NotifyAttributeChanged(EHktAttributeType Type, float NewValue)

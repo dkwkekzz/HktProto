@@ -6,7 +6,6 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "HktEntityManager.h"
 #include "HktFlowVM.h"
-#include "IHktPlayerAttributeProvider.h"
 #include "HktSimulationSubsystem.generated.h"
 
 struct FHktIntentEvent;
@@ -18,17 +17,14 @@ DECLARE_LOG_CATEGORY_EXTERN(LogHktSimulation, Log, All);
  * World Subsystem for managing HktSimulation
  * - IntentEvent를 받아 FlowVM을 통해 시뮬레이션을 실행
  * - Entity/Player Database를 관리
- * - IHktPlayerAttributeProvider 구현: Player 속성 변경을 외부에 제공
+ * - 속성 변경 시 Sink를 통해 즉시 HktIntent에 전달 (Commit 불필요)
  * 
- * Sliding Window 방식:
- * - FetchNewEvents로 마지막 처리 프레임 이후의 이벤트만 조회
- * - 처리 성공 시 프레임 커서 업데이트
- * - 실패 시 커서 유지하여 다음 프레임에 재시도
+ * 의존성 방향: HktSimulation → HktService (인터페이스) ← HktIntent
  */
 class FHktVMPool;
 
 UCLASS()
-class HKTSIMULATION_API UHktSimulationSubsystem : public UTickableWorldSubsystem, public IHktPlayerAttributeProvider
+class HKTSIMULATION_API UHktSimulationSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -45,12 +41,13 @@ public:
 	// Helper to get the subsystem from a world context
 	static UHktSimulationSubsystem* Get(const UObject* WorldContextObject);
 
-	// --- IHktPlayerAttributeProvider 구현 ---
-	virtual FOnPlayerAttributeChanged& OnPlayerAttributeChanged() override;
-	virtual bool GetPlayerAttributeSnapshot(const FHktPlayerHandle& PlayerHandle, FHktPlayerAttributeSnapshot& OutSnapshot) const override;
-	virtual bool ConsumeChangedPlayers(TArray<FHktPlayerAttributeSnapshot>& OutSnapshots) override;
-	virtual FHktPlayerHandle RegisterPlayer() override;
-	virtual void UnregisterPlayer(const FHktPlayerHandle& PlayerHandle) override;
+	// --- Player Management ---
+	
+	/** 새 플레이어 등록 (GameMode에서 호출) */
+	FHktPlayerHandle RegisterPlayer();
+	
+	/** 플레이어 등록 해제 */
+	void UnregisterPlayer(const FHktPlayerHandle& PlayerHandle);
 
 	// --- Entity Management API ---
 	
@@ -70,13 +67,18 @@ public:
 	/** IntentEvent로부터 FlowVM을 생성하여 실행 큐에 추가 */
 	void ExecuteIntentEvent(const FHktIntentEvent& Event);
 
-	// --- Cursor Management (Sliding Window) ---
+	// --- Lockstep Event Management ---
 	
-	/** 현재 커서(마지막 처리 프레임) 조회 */
-	int32 GetLastProcessedFrame() const { return LastProcessedFrame; }
+	/** 현재 처리 중인 마지막 EventId 조회 */
+	int32 GetLastProcessedEventId() const { return LastProcessedEventId; }
+
+	// --- Player Attribute API (Sink를 통해 즉시 전달) ---
 	
-	/** 커서 강제 설정 (Late Join 시 사용) */
-	void SetLastProcessedFrame(int32 NewFrame) { LastProcessedFrame = NewFrame; }
+	/** 플레이어 속성 설정 (즉시 Sink에 전달) */
+	void SetPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Value);
+	
+	/** 플레이어 속성 수정 (Delta 적용 후 즉시 Sink에 전달) */
+	void ModifyPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Delta);
 
 protected:
 	/** 매 틱마다 IntentEvent를 수집하고 처리 (Sliding Window 방식) */
@@ -90,10 +92,6 @@ protected:
 
 	/** IntentEvent의 EventTag에 따라 바이트코드를 빌드 */
 	void BuildBytecodeForEvent(FHktFlowVM& VM, const FHktIntentEvent& Event);
-
-private:
-	/** FHktAttributeSet를 FHktPlayerAttributeSnapshot으로 변환 */
-	void ConvertToSnapshot(int32 PlayerIndex, const FHktAttributeSet& Attrs, FHktPlayerAttributeSnapshot& OutSnapshot) const;
 
 private:
 	// Global Entity Manager
@@ -112,9 +110,11 @@ private:
 	// 다음 외부 ID 생성용 카운터
 	int32 NextExternalUnitId = 1;
 
-	// --- Sliding Window Cursor ---
-	int32 LastProcessedFrame = 0;
+	// --- Lockstep Event Processing ---
 	
-	// --- Player Attribute Provider ---
-	FOnPlayerAttributeChanged OnPlayerAttributeChangedDelegate;
+	// 마지막 처리 EventId 추적
+	int32 LastProcessedEventId = 0;
+	
+	// 시뮬레이션 중 속성 변경 누적
+	FHktSimulationResult PendingResult;
 };

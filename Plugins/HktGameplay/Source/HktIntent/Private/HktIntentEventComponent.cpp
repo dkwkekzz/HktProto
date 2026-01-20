@@ -13,52 +13,36 @@ void FHktEventItem::PostReplicatedAdd(const FHktEventContainer& InArraySerialize
 {
     if (InArraySerializer.OwnerSubsystem)
     {
-        InArraySerializer.OwnerSubsystem->CreateOrGetChannel(InArraySerializer.ChannelId)->AddEvent(Event);
+        InArraySerializer.OwnerSubsystem->AddEvent(Event);
     }
 }
 
 void FHktEventItem::PostReplicatedChange(const FHktEventContainer& InArraySerializer)
 {
-    if (InArraySerializer.OwnerSubsystem)
-    {
-        InArraySerializer.OwnerSubsystem->CreateOrGetChannel(InArraySerializer.ChannelId)->UpdateEvent(Event);
-    }
+    // Lockstep 방식에서는 Update 없음 (추가만)
+    // 혹시 발생하면 로그
+    UE_LOG(LogTemp, Warning, TEXT("[FHktEventItem] PostReplicatedChange called - unexpected in Lockstep mode"));
 }
 
 void FHktEventItem::PreReplicatedRemove(const FHktEventContainer& InArraySerializer)
 {
-    if (InArraySerializer.OwnerSubsystem)
-    {
-        InArraySerializer.OwnerSubsystem->CreateOrGetChannel(InArraySerializer.ChannelId)->RemoveEvent(Event);
-    }
+    // Lockstep 방식에서는 Commit 시 서버에서만 제거
+    // 클라이언트에서 제거 복제되면 로그만 남김
+    UE_LOG(LogTemp, Verbose, TEXT("[FHktEventItem] PreReplicatedRemove called for EventId: %d"), Event.EventId);
 }
 
 FHktEventItem& FHktEventContainer::AddOrUpdateItem(const FHktEventItem& Item)
 {
-    FHktEventItem* ExistingItem = Items.FindByPredicate([&](const FHktEventItem& Existing)
-    {
-        return Existing.Event.EventId == Item.Event.EventId;
-    });
-
-    if (ExistingItem)
-    {
-        *ExistingItem = Item;
-        MarkItemDirty(*ExistingItem);
-        // 서버에서 직접 Subsystem에 동기화
-        if (OwnerSubsystem)
-        {
-            OwnerSubsystem->CreateOrGetChannel(ChannelId)->UpdateEvent(ExistingItem->Event);
-        }
-        return *ExistingItem;
-    }
-
+    // Lockstep 방식: 추가만 허용, Update는 불필요
     FHktEventItem& NewItem = Items.Add_GetRef(Item);
     MarkItemDirty(NewItem);
+    
     // 서버에서 직접 Subsystem에 동기화
     if (OwnerSubsystem)
     {
-        OwnerSubsystem->CreateOrGetChannel(ChannelId)->AddEvent(ExistingItem->Event);
+        OwnerSubsystem->AddEvent(NewItem.Event);
     }
+    
     return NewItem;
 }
 
@@ -145,4 +129,23 @@ void UHktIntentEventComponent::Server_ReceiveEvent_Implementation(FHktIntentEven
 bool UHktIntentEventComponent::Server_ReceiveEvent_Validate(FHktIntentEvent PendingEvent)
 {
     return true; 
+}
+
+void UHktIntentEventComponent::RemoveProcessedEvents(int32 LastProcessedEventId)
+{
+    if (GetOwnerRole() != ROLE_Authority)
+    {
+        return;
+    }
+    
+    const int32 RemovedCount = EventBuffer.Items.RemoveAll([LastProcessedEventId](const FHktEventItem& Item) {
+        return Item.Event.EventId <= LastProcessedEventId;
+    });
+    
+    if (RemovedCount > 0)
+    {
+        EventBuffer.MarkArrayDirty();
+        UE_LOG(LogTemp, Verbose, TEXT("[HktIntentEventComponent] Removed %d processed events (EventId <= %d)"), 
+            RemovedCount, LastProcessedEventId);
+    }
 }

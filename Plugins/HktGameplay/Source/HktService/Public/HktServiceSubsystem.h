@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Subsystems/WorldSubsystem.h"
 #include "HktServiceInterface.h"
@@ -7,7 +7,6 @@
 #include "HktSimulationInterface.h"
 #include "IHktJobProvider.h"
 #include "IHktSelectionProvider.h"
-#include "IHktPlayerAttributeProvider.h"
 #include "HktServiceSubsystem.generated.h"
 
 /**
@@ -39,15 +38,11 @@ public:
 	void RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 	void UnregisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 
-	void RegisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider);
-	void UnregisterPlayerAttributeProvider(TScriptInterface<IHktPlayerAttributeProvider> Provider);
-
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
 	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider() const;
 	TScriptInterface<IHktAssetProvider> GetAssetProvider() const;
 	TScriptInterface<IHktJobProvider> GetJobProvider() const;
-	TScriptInterface<IHktPlayerAttributeProvider> GetPlayerAttributeProvider() const;
 
 private:
 	UPROPERTY()
@@ -61,7 +56,4 @@ private:
 
 	UPROPERTY()
 	TScriptInterface<IHktJobProvider> JobProvider;
-
-	UPROPERTY()
-	TScriptInterface<IHktPlayerAttributeProvider> PlayerAttributeProvider;
 };

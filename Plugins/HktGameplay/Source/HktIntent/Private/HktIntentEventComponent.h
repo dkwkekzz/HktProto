@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
-#include "HktServiceInterfaces.h"
+#include "HktIntentInterface.h"
 #include "HktIntentEventComponent.generated.h"
 
 class UHktIntentBuilderComponent;
@@ -107,6 +107,9 @@ public:
 	/** 복제된 이벤트 버퍼 직접 접근 (읽기 전용) */
 	UFUNCTION(BlueprintCallable, Category = "Hkt|Intent")
 	const TArray<FHktEventItem>& GetEventBuffer() const { return EventBuffer.Items; }
+
+	/** 처리된 이벤트 제거 (Server only, Commit에서 호출) */
+	void RemoveProcessedEvents(int32 LastProcessedEventId);
 
 protected:
 	// --- Networking ---

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
@@ -46,4 +46,22 @@ struct FHktPlayerHandle
 	{
 		return Value == Other.Value;
 	}
+};
+
+/**
+ * Player Attribute Types
+ * 
+ * 플레이어와 유닛이 공통으로 사용하는 속성 타입입니다.
+ */
+UENUM(BlueprintType)
+enum class EHktAttributeType : uint8
+{
+	Health = 0,
+	MaxHealth,
+	Mana,
+	MaxMana,
+	AttackPower,
+	Defense,
+	MoveSpeed,
+	Count	UMETA(Hidden)
 };

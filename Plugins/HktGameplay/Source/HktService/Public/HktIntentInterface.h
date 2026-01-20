@@ -79,6 +79,36 @@ struct FHktIntentEventGroup
     TArray<FHktIntentEvent> Events;
 };
 
+// --- Lockstep 시뮬레이션 결과 구조 ---
+
+/**
+ * 플레이어별 속성 변경 내역
+ * 직렬 처리이므로 TMap 대신 간단한 배열 사용
+ */
+USTRUCT(BlueprintType)
+struct FHktAttributeChanges
+{
+    GENERATED_BODY()
+    
+    // 변경된 속성과 새 값
+    UPROPERTY()
+    TArray<TPair<EHktAttributeType, float>> ChangedAttributes;
+};
+
+/**
+ * 시뮬레이션 처리 결과
+ * Commit 시 IntentSubsystem에 전달됨
+ */
+USTRUCT(BlueprintType)
+struct FHktSimulationResult
+{
+    GENERATED_BODY()
+    
+    // 플레이어별 속성 변경 내역
+    UPROPERTY()
+    TMap<int32, FHktAttributeChanges> PlayerAttributeChanges; // Key = PlayerHandle.Value
+};
+
 UINTERFACE(MinimalAPI, BlueprintType)
 class UHktIntentEventProvider : public UInterface
 {
@@ -89,32 +119,29 @@ class UHktIntentEventProvider : public UInterface
  * Interface for a system that provides Intent Events to consumers (Simulation).
  * Implemented by HktIntent module.
  * 
- * Sliding Window 방식:
- * - 이벤트는 바로 삭제되지 않고 일정 시간/개수 동안 유지됨
- * - 소비자는 자신의 커서(LastProcessedFrame) 이후의 이벤트만 가져감
- * - Late Join 유저도 히스토리에서 이벤트를 가져와 따라잡을 수 있음
+ * Lockstep 방식:
+ * - Fetch: 모든 이벤트 History를 반환하고 Flush
+ * - Process: Simulation이 이벤트를 처리하고 결과 누적
+ * - Commit: 처리 결과를 반영하고 EventBuffer 정리
  */
 class HKTSERVICE_API IHktIntentEventProvider
 {
 	GENERATED_BODY()
 
 public:
-	/** 인텐트 추가: Subject와 Tag가 겹치지 않는다고 가정하거나, 중복 허용 정책에 따름 */
-	virtual bool AddEvent(const FHktIntentEvent& InEvent) = 0;
-
-	/** 인텐트 제거: Subject와 Tag가 일치하는 이벤트를 찾아 제거 */
-	virtual bool RemoveEvent(const FHktIntentEvent& InEvent) = 0;
-
-	/** 인텐트 갱신: 기존 인텐트를 찾아 Target이나 Frame 등을 변경 (Remove -> Add 로직으로 처리하여 변경 사항 전파) */
-	virtual bool UpdateEvent(const FHktIntentEvent& InNewEvent) = 0;
-
 	/**
-	 * [Sliding Window] 커서 기반 이벤트 조회
-	 * @param InLastProcessedFrame 마지막으로 처리한 프레임 번호 (이후의 이벤트만 반환)
-	 * @param OutEvents 새로 처리해야 할 이벤트 목록
-	 * @return 새 이벤트가 있으면 true
+	 * [Lockstep] 모든 이벤트 History를 반환하고 Flush
+	 * @param OutEvents 처리해야 할 모든 이벤트 (반환 후 History는 비워짐)
+	 * @return 이벤트가 있으면 true
 	 */
-	virtual bool FetchNewEvents(int32 InLastProcessedFrame, TArray<FHktIntentEvent>& OutEvents) = 0;
+	virtual bool Fetch(TArray<FHktIntentEvent>& OutEvents) = 0;
+	
+	/**
+	 * [Lockstep] 시뮬레이션 처리 결과를 Commit
+	 * @param LastProcessedEventId 마지막으로 처리한 이벤트 ID
+	 * @param Result 시뮬레이션 결과 (속성 변경 내역)
+	 */
+	virtual void Commit(int32 LastProcessedEventId, const FHktSimulationResult& Result) = 0;
 
 	/** 현재 히스토리의 가장 최신 프레임 번호 반환 */
 	virtual int32 GetLatestFrameNumber() const = 0;

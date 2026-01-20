@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
-#include "IHktPlayerAttributeProvider.h"
+#include "HktServiceInterface.h"
 #include "HktAttributeComponent.generated.h"
 
 class UHktAttributeComponent;
@@ -67,14 +67,14 @@ struct FHktAttributeContainer : public FFastArraySerializer
 	/** 속성 추가 또는 업데이트 */
 	void SetAttribute(EHktAttributeType Type, float NewValue);
 	
+	/** 모든 속성 일괄 설정 */
+	void SetAllAttributes(const TArray<float>& Values);
+	
 	/** 속성 조회 */
 	float GetAttribute(EHktAttributeType Type) const;
 	
 	/** 모든 속성 초기화 */
 	void InitializeDefaults();
-	
-	/** 스냅샷에서 일괄 업데이트 */
-	void ApplySnapshot(const FHktPlayerAttributeSnapshot& Snapshot);
 
 private:
 	/** 타입으로 Item 인덱스 찾기 */
@@ -114,19 +114,24 @@ public:
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// --- Server API ---
+	// --- Server API (Simulation이 Sink를 통해 호출) ---
 	
 	/**
 	 * 플레이어 핸들 설정 (Server only)
-	 * IntentSubsystem에서 호출
 	 */
 	void SetPlayerHandle(const FHktPlayerHandle& InHandle);
 	
 	/**
-	 * Simulation 스냅샷으로부터 속성 업데이트 (Server only)
-	 * IntentSubsystem에서 호출
+	 * 단일 속성 즉시 설정 (Server only)
+	 * Simulation이 PushAttribute() 시 호출됨
 	 */
-	void ApplyAttributeSnapshot(const FHktPlayerAttributeSnapshot& Snapshot);
+	void SetAttribute(EHktAttributeType Type, float Value);
+	
+	/**
+	 * 모든 속성 일괄 설정 (Server only)
+	 * Simulation이 PushAllAttributes() 시 호출됨
+	 */
+	void SetAllAttributes(const TArray<float>& Values);
 
 	// --- Accessors ---
 	
