@@ -9,14 +9,16 @@
 class UHktInputContext;
 class UHktIntentEventComponent;
 class UHktIntentBuilderComponent;
-class UHktAttributeComponent;
 
 /**
  * PlayerState for HktIntent system.
  * 
  * Components:
  * - IntentEventComponent: 클라이언트 인텐트를 서버로 전송
- * - AttributeComponent: 플레이어 속성을 FFastArraySerializer로 리플리케이션
+ * 
+ * Lockstep 동기화:
+ * - Late Join 클라이언트는 서버로부터 스냅샷 RPC를 받아 SimulationSubsystem 초기화
+ * - 정상 클라이언트는 로컬 Simulation 결과 사용
  */
 UCLASS()
 class HKTINTENT_API AHktIntentPlayerState : public APlayerState
@@ -34,19 +36,23 @@ public:
 	void SubmitIntent(UHktIntentBuilderComponent* Builder);
 
 	//-------------------------------------------------------------------------
-	// Attribute Access
+	// Player Handle
 	//-------------------------------------------------------------------------
 	
-	/** AttributeComponent 접근자 */
-	UFUNCTION(BlueprintPure, Category = "Hkt|Attributes")
-	UHktAttributeComponent* GetAttributeComponent() const { return AttributeComponent; }
-
 	/** PlayerHandle 접근자 */
 	UFUNCTION(BlueprintPure, Category = "Hkt|Player")
 	FHktPlayerHandle GetPlayerHandle() const { return PlayerHandle; }
 
-	/** PlayerHandle 설정 (Server only, IntentSubsystem에서 호출) */
+	/** PlayerHandle 설정 (Server only, GameMode에서 호출) */
 	void SetPlayerHandle(const FHktPlayerHandle& InHandle);
+
+	//-------------------------------------------------------------------------
+	// Late Join Snapshot (Server → Client RPC)
+	//-------------------------------------------------------------------------
+	
+	/** 서버에서 Late Join 클라이언트에게 스냅샷 전송 */
+	UFUNCTION(Client, Reliable)
+	void Client_InitializeSnapshot(const TArray<float>& AttributeValues);
 
 protected:
 	virtual void BeginPlay() override;
@@ -56,10 +62,6 @@ private:
 	/** Intent 전송 컴포넌트 (네트워크 복제 담당) */
 	UPROPERTY(VisibleAnywhere, Category = "Hkt|Components")
 	TObjectPtr<UHktIntentEventComponent> IntentEventComponent;
-
-	/** 플레이어 속성 컴포넌트 (FFastArraySerializer 기반 리플리케이션) */
-	UPROPERTY(VisibleAnywhere, Category = "Hkt|Components")
-	TObjectPtr<UHktAttributeComponent> AttributeComponent;
 
 	/** Player Handle (Simulation과 연결) */
 	UPROPERTY(Replicated)

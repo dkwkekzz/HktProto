@@ -6,6 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "HktEntityManager.h"
 #include "HktFlowVM.h"
+#include "HktServiceInterface.h"
 #include "HktSimulationSubsystem.generated.h"
 
 struct FHktIntentEvent;
@@ -17,14 +18,14 @@ DECLARE_LOG_CATEGORY_EXTERN(LogHktSimulation, Log, All);
  * World Subsystem for managing HktSimulation
  * - IntentEvent를 받아 FlowVM을 통해 시뮬레이션을 실행
  * - Entity/Player Database를 관리
- * - 속성 변경 시 Sink를 통해 즉시 HktIntent에 전달 (Commit 불필요)
+ * - IHktSimulationProvider 구현으로 외부 모듈에 서비스 제공
  * 
  * 의존성 방향: HktSimulation → HktService (인터페이스) ← HktIntent
  */
 class FHktVMPool;
 
 UCLASS()
-class HKTSIMULATION_API UHktSimulationSubsystem : public UTickableWorldSubsystem
+class HKTSIMULATION_API UHktSimulationSubsystem : public UTickableWorldSubsystem, public IHktSimulationProvider
 {
 	GENERATED_BODY()
 
@@ -41,13 +42,19 @@ public:
 	// Helper to get the subsystem from a world context
 	static UHktSimulationSubsystem* Get(const UObject* WorldContextObject);
 
-	// --- Player Management ---
+	// --- IHktSimulationProvider 구현 ---
 	
-	/** 새 플레이어 등록 (GameMode에서 호출) */
-	FHktPlayerHandle RegisterPlayer();
+	/** 새 플레이어 등록 */
+	virtual FHktPlayerHandle RegisterPlayer() override;
 	
 	/** 플레이어 등록 해제 */
-	void UnregisterPlayer(const FHktPlayerHandle& PlayerHandle);
+	virtual void UnregisterPlayer(const FHktPlayerHandle& Handle) override;
+	
+	/** 플레이어 속성 스냅샷 조회 (Late Join용) */
+	virtual bool GetPlayerSnapshot(const FHktPlayerHandle& Handle, TArray<float>& OutValues) const override;
+	
+	/** 플레이어 속성 스냅샷으로 초기화 */
+	virtual void InitializePlayerFromSnapshot(const FHktPlayerHandle& Handle, const TArray<float>& Values) override;
 
 	// --- Entity Management API ---
 	
@@ -72,13 +79,18 @@ public:
 	/** 현재 처리 중인 마지막 EventId 조회 */
 	int32 GetLastProcessedEventId() const { return LastProcessedEventId; }
 
-	// --- Player Attribute API (Sink를 통해 즉시 전달) ---
+	// --- Player Attribute API (Lockstep 방식 - Sink 제거) ---
 	
-	/** 플레이어 속성 설정 (즉시 Sink에 전달) */
+	/** 플레이어 속성 설정 (로컬 DB만 업데이트, 서버는 별도로 FAS 동기화) */
 	void SetPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Value);
 	
-	/** 플레이어 속성 수정 (Delta 적용 후 즉시 Sink에 전달) */
+	/** 플레이어 속성 수정 (Delta 적용, 로컬 DB만 업데이트) */
 	void ModifyPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Delta);
+
+	// --- Lockstep Synchronization ---
+	
+	/** Simulation이 실행 중인지 체크 (Late Join 감지용) */
+	bool IsSimulationRunning() const { return bSimulationRunning; }
 
 protected:
 	/** 매 틱마다 IntentEvent를 수집하고 처리 (Sliding Window 방식) */
@@ -117,4 +129,15 @@ private:
 	
 	// 시뮬레이션 중 속성 변경 누적
 	FHktSimulationResult PendingResult;
+
+	// --- Lockstep Synchronization ---
+	
+	// Simulation 실행 상태 플래그 (Late Join 감지용)
+	bool bSimulationRunning = false;
+	
+	// IHktAttributeSink 캐시 (더 이상 사용하지 않음 - Late Join용 FAS만 서버에서 관리)
+	mutable IHktAttributeSink* CachedAttributeSink = nullptr;
+	
+	/** Sink 조회 헬퍼 (더 이상 푸시용으로 사용 안 함) */
+	IHktAttributeSink* GetAttributeSink() const;
 };

@@ -11,6 +11,8 @@
 
 void FHktEventItem::PostReplicatedAdd(const FHktEventContainer& InArraySerializer)
 {
+    // IntentSubsystem에 추가 (히스토리 관리)
+    // 클라이언트: ProcessIntentEvents()에서 Fetch()로 처리됨
     if (InArraySerializer.OwnerSubsystem)
     {
         InArraySerializer.OwnerSubsystem->AddEvent(Event);

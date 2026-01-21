@@ -2,7 +2,6 @@
 
 #include "HktIntentSubsystem.h"
 #include "HktIntentEventComponent.h"
-#include "HktAttributeComponent.h"
 #include "HktIntentPlayerState.h"
 #include "HktServiceSubsystem.h"
 
@@ -23,7 +22,7 @@ void UHktIntentSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UHktIntentSubsystem::Deinitialize()
 {
     EventHistory.Reset();
-    PlayerHandleToComponent.Reset();
+    PlayerHandleToPlayerState.Reset();
 
     if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
     {
@@ -81,26 +80,11 @@ bool UHktIntentSubsystem::Fetch(TArray<FHktIntentEvent>& OutEvents)
 
 void UHktIntentSubsystem::Commit(int32 LastProcessedEventId, const FHktSimulationResult& Result)
 {
-    // 1. 속성 변경 내역을 AttributeComponent에 반영
-    for (const auto& Pair : Result.PlayerAttributeChanges)
-    {
-        FHktPlayerHandle Handle;
-        Handle.Value = Pair.Key;
-        
-        if (UHktAttributeComponent* Component = FindComponentByHandle(Handle))
-        {
-            for (const TPair<EHktAttributeType, float>& AttrChange : Pair.Value.ChangedAttributes)
-            {
-                Component->SetAttribute(AttrChange.Key, AttrChange.Value);
-            }
-        }
-    }
-    
-    // 2. EventBuffer 정리 (처리된 이벤트 제거)
+    // Lockstep 방식: EventBuffer 정리만 수행
+    // Late Join은 GameMode.PostLogin에서 RPC로 처리
     CleanupProcessedEvents(LastProcessedEventId);
     
-    UE_LOG(LogTemp, Verbose, TEXT("[HktIntentSubsystem] Committed LastEventId: %d, Applied %d player attribute changes"),
-        LastProcessedEventId, Result.PlayerAttributeChanges.Num());
+    UE_LOG(LogTemp, Verbose, TEXT("[HktIntentSubsystem] Committed LastEventId: %d"), LastProcessedEventId);
 }
 
 int32 UHktIntentSubsystem::GetLatestFrameNumber() const
@@ -116,24 +100,18 @@ int32 UHktIntentSubsystem::GetOldestFrameNumber() const
 void UHktIntentSubsystem::CleanupProcessedEvents(int32 LastProcessedEventId)
 {
     // 모든 등록된 PlayerState의 EventBuffer에서 처리된 이벤트 제거
-    // PlayerHandleToComponent의 Owner가 PlayerState라고 가정
-    
     TSet<UHktIntentEventComponent*> ProcessedComponents;
     
-    for (const auto& Pair : PlayerHandleToComponent)
+    for (const auto& Pair : PlayerHandleToPlayerState)
     {
-        if (UHktAttributeComponent* Component = Pair.Value.Get())
+        if (AHktIntentPlayerState* PlayerState = Pair.Value.Get())
         {
-            if (AActor* Owner = Component->GetOwner())
+            if (UHktIntentEventComponent* EventComp = PlayerState->FindComponentByClass<UHktIntentEventComponent>())
             {
-                // PlayerState는 여러 Component를 가질 수 있으므로 중복 처리 방지
-                if (UHktIntentEventComponent* EventComp = Owner->FindComponentByClass<UHktIntentEventComponent>())
+                if (!ProcessedComponents.Contains(EventComp))
                 {
-                    if (!ProcessedComponents.Contains(EventComp))
-                    {
-                        EventComp->RemoveProcessedEvents(LastProcessedEventId);
-                        ProcessedComponents.Add(EventComp);
-                    }
+                    EventComp->RemoveProcessedEvents(LastProcessedEventId);
+                    ProcessedComponents.Add(EventComp);
                 }
             }
         }
@@ -146,7 +124,7 @@ void UHktIntentSubsystem::CleanupProcessedEvents(int32 LastProcessedEventId)
 
 void UHktIntentSubsystem::RegisterPlayerState(AHktIntentPlayerState* PlayerState, const FHktPlayerHandle& Handle)
 {
-    if (!PlayerState || !PlayerState->GetAttributeComponent() || !Handle.IsValid())
+    if (!PlayerState || !Handle.IsValid())
     {
         return;
     }
@@ -154,8 +132,8 @@ void UHktIntentSubsystem::RegisterPlayerState(AHktIntentPlayerState* PlayerState
     // PlayerState에 핸들 설정
     PlayerState->SetPlayerHandle(Handle);
 
-    // Component 매핑 추가
-    PlayerHandleToComponent.Add(Handle.Value, PlayerState->GetAttributeComponent());
+    // 매핑 추가
+    PlayerHandleToPlayerState.Add(Handle.Value, PlayerState);
 
     UE_LOG(LogTemp, Log, TEXT("[HktIntentSubsystem] Registered PlayerState with Handle: %d"), Handle.Value);
 }
@@ -170,14 +148,14 @@ void UHktIntentSubsystem::UnregisterPlayerState(AHktIntentPlayerState* PlayerSta
     FHktPlayerHandle Handle = PlayerState->GetPlayerHandle();
     if (Handle.IsValid())
     {
-        PlayerHandleToComponent.Remove(Handle.Value);
+        PlayerHandleToPlayerState.Remove(Handle.Value);
         UE_LOG(LogTemp, Log, TEXT("[HktIntentSubsystem] Unregistered PlayerState with Handle: %d"), Handle.Value);
     }
 }
 
-UHktAttributeComponent* UHktIntentSubsystem::FindComponentByHandle(const FHktPlayerHandle& Handle) const
+AHktIntentPlayerState* UHktIntentSubsystem::FindPlayerStateByHandle(const FHktPlayerHandle& Handle) const
 {
-    if (const TWeakObjectPtr<UHktAttributeComponent>* Found = PlayerHandleToComponent.Find(Handle.Value))
+    if (const TWeakObjectPtr<AHktIntentPlayerState>* Found = PlayerHandleToPlayerState.Find(Handle.Value))
     {
         return Found->Get();
     }

@@ -1,4 +1,4 @@
-﻿// Copyright Hkt Studios, Inc. All Rights Reserved.
+// Copyright Hkt Studios, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
@@ -29,8 +29,7 @@ public class HktSimulation : ModuleRules
 				"MassSpawner",
 				"GameplayTags",
 				"StructUtils",
-				"HktIntent",   // Read-only dependency on Intent module
-				"HktService",  // Access to service providers
+				"HktService",  // Access to service providers (includes HktIntentInterface)
 				"HktFlow"  // Access to job types and provider
 			}
 		);

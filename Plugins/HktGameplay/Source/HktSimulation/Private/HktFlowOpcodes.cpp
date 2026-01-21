@@ -151,14 +151,42 @@ void FHktOpRegistry::EnsureInitialized()
 {
 	if (bInitialized) return;
 	bInitialized = true;
-	
-	// Register core opcodes with category
+
+	// === 기존 Core Opcodes ===
 	RegisterOpcode(ECoreOp::WaitTime, FHktFlowVM::Op_WaitTime, TEXT("Core.Wait"));
 	RegisterOpcode(ECoreOp::WaitUntilDestroyed, FHktFlowVM::Op_WaitUntilDestroyed, TEXT("Core.Wait"));
 	RegisterOpcode(ECoreOp::PlayAnim, FHktFlowVM::Op_PlayAnim, TEXT("Core.Animation"));
 	RegisterOpcode(ECoreOp::SpawnProjectile, FHktFlowVM::Op_SpawnProjectile, TEXT("Core.Spawn"));
 	RegisterOpcode(ECoreOp::ExplodeAndDamage, FHktFlowVM::Op_ExplodeAndDamage, TEXT("Core.Damage"));
-	RegisterOpcode(ECoreOp::ModifyAttribute, FHktFlowVM::Op_ModifyAttribute, TEXT("Core.Attribute"));
+	RegisterOpcode(ECoreOp.::ModifyAttribute, FHktFlowVM::Op_ModifyAttribute, TEXT("Core.Attribute"));
+
+	// === Movement Opcodes ===
+	RegisterOpcode(ECoreOp::MoveTo, FHktFlowVM::Op_MoveTo, TEXT("Movement"));
+	RegisterOpcode(ECoreOp::MoveForward, FHktFlowVM::Op_MoveForward, TEXT("Movement"));
+	RegisterOpcode(ECoreOp::Stop, FHktFlowVM::Op_Stop, TEXT("Movement"));
+	RegisterOpcode(ECoreOp::ApplyForce, FHktFlowVM::Op_ApplyForce, TEXT("Movement"));
+
+	// === Wait Opcodes ===
+	RegisterOpcode(ECoreOp::WaitArrival, FHktFlowVM::Op_WaitArrival, TEXT("Wait"));
+	RegisterOpcode(ECoreOp::WaitCollision, FHktFlowVM::Op_WaitCollision, TEXT("Wait"));
+	RegisterOpcode(ECoreOp::WaitSignal, FHktFlowVM::Op_WaitSignal, TEXT("Wait"));
+
+	// === Flow Control Opcodes ===
+	RegisterOpcode(ECoreOp::Jump, FHktFlowVM::Op_Jump, TEXT("FlowControl"));
+	RegisterOpcode(ECoreOp::Halt, FHktFlowVM::Op_Halt, TEXT("FlowControl"));
+
+	// === Query Opcodes ===
+	RegisterOpcode(ECoreOp::QuerySphere, FHktFlowVM::Op_QuerySphere, TEXT("Query"));
+	RegisterOpcode(ECoreOp::ForEachTarget, FHktFlowVM::Op_ForEachTarget, TEXT("Query"));
+	RegisterOpcode(ECoreOp::EndForEach, FHktFlowVM::Op_EndForEach, TEXT("Query"));
+
+	// === Entity Opcodes ===
+	RegisterOpcode(ECoreOp::SpawnEntity, FHktFlowVM::Op_SpawnEntity, TEXT("Entity"));
+	RegisterOpcode(ECoreOp::DestroyEntity, FHktFlowVM::Op_DestroyEntity, TEXT("Entity"));
+
+	// === Damage Opcodes ===
+	RegisterOpcode(ECoreOp::SetDamage, FHktFlowVM::Op_SetDamage, TEXT("Damage"));
+	RegisterOpcode(ECoreOp::ApplyDot, FHktFlowVM::Op_ApplyDot, TEXT("Damage"));
 
 	UE_LOG(LogOpRegistry, Log, TEXT("Opcode registry initialized with %d core opcodes"), GetRegisteredCount());
 }

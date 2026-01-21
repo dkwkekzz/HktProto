@@ -1,7 +1,7 @@
 #include "HktIntentPlayerState.h"
 #include "HktIntentEventComponent.h"
 #include "HktIntentBuilderComponent.h"
-#include "HktAttributeComponent.h"
+#include "HktServiceSubsystem.h"
 #include "Net/UnrealNetwork.h"
 
 //-----------------------------------------------------------------------------
@@ -11,7 +11,6 @@
 AHktIntentPlayerState::AHktIntentPlayerState()
 {
 	IntentEventComponent = CreateDefaultSubobject<UHktIntentEventComponent>(TEXT("IntentEventComponent"));
-	AttributeComponent = CreateDefaultSubobject<UHktAttributeComponent>(TEXT("AttributeComponent"));
 }
 
 void AHktIntentPlayerState::BeginPlay()
@@ -35,11 +34,22 @@ void AHktIntentPlayerState::SetPlayerHandle(const FHktPlayerHandle& InHandle)
 	if (HasAuthority())
 	{
 		PlayerHandle = InHandle;
-		
-		// AttributeComponent에도 전달
-		if (AttributeComponent)
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Late Join Snapshot
+//-----------------------------------------------------------------------------
+
+void AHktIntentPlayerState::Client_InitializeSnapshot_Implementation(const TArray<float>& AttributeValues)
+{
+	// Late Join: HktService를 통해 SimulationProvider에 스냅샷 전달
+	if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
+	{
+		if (TScriptInterface<IHktSimulationProvider> SimProvider = Service->GetSimulationProvider())
 		{
-			AttributeComponent->SetPlayerHandle(InHandle);
+			SimProvider->InitializePlayerFromSnapshot(PlayerHandle, AttributeValues);
+			UE_LOG(LogTemp, Log, TEXT("[PlayerState] Late Join: Initialized player %d from server snapshot"), PlayerHandle.Value);
 		}
 	}
 }

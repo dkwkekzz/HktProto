@@ -12,6 +12,7 @@ void UHktServiceSubsystem::Deinitialize()
 	IntentEventProvider = nullptr;
 	AssetProvider = nullptr;
 	JobProvider = nullptr;
+	SimulationProvider = nullptr;
 	Super::Deinitialize();
 }
 
@@ -94,4 +95,22 @@ void UHktServiceSubsystem::UnregisterJobProvider(TScriptInterface<IHktJobProvide
 TScriptInterface<IHktJobProvider> UHktServiceSubsystem::GetJobProvider() const
 {
 	return JobProvider;
+}
+
+void UHktServiceSubsystem::RegisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider)
+{
+	SimulationProvider = Provider;
+}
+
+void UHktServiceSubsystem::UnregisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider)
+{
+	if (SimulationProvider == Provider)
+	{
+		SimulationProvider = nullptr;
+	}
+}
+
+TScriptInterface<IHktSimulationProvider> UHktServiceSubsystem::GetSimulationProvider() const
+{
+	return SimulationProvider;
 }

@@ -38,11 +38,15 @@ public:
 	void RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 	void UnregisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 
+	void RegisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider);
+	void UnregisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider);
+
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
 	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider() const;
 	TScriptInterface<IHktAssetProvider> GetAssetProvider() const;
 	TScriptInterface<IHktJobProvider> GetJobProvider() const;
+	TScriptInterface<IHktSimulationProvider> GetSimulationProvider() const;
 
 private:
 	UPROPERTY()
@@ -56,4 +60,7 @@ private:
 
 	UPROPERTY()
 	TScriptInterface<IHktJobProvider> JobProvider;
+
+	UPROPERTY()
+	TScriptInterface<IHktSimulationProvider> SimulationProvider;
 };

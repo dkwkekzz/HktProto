@@ -17,8 +17,11 @@ void UHktSimulationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// HktServiceSubsystem 의존성 초기화
-	Collection.InitializeDependency<UHktServiceSubsystem>();
+	// HktServiceSubsystem 의존성 초기화 및 Provider 등록
+	if (UHktServiceSubsystem* Service = Collection.InitializeDependency<UHktServiceSubsystem>())
+	{
+		Service->RegisterSimulationProvider(this);
+	}
 
 	// Initialize VM pool
 	VMPool = MakeUnique<FHktVMPool>();
@@ -33,6 +36,12 @@ void UHktSimulationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UHktSimulationSubsystem::Deinitialize()
 {
+	// Provider 해제
+	if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
+	{
+		Service->UnregisterSimulationProvider(this);
+	}
+
 	// Release all active VMs back to pool
 	for (FHktFlowVM* VM : ActiveVMs)
 	{
@@ -47,7 +56,8 @@ void UHktSimulationSubsystem::Deinitialize()
 	FBytecodePool::Clear();
 	
 	ExternalToInternalMap.Empty();
-	LastProcessedFrame = 0;
+	LastProcessedEventId = 0;
+	bSimulationRunning = false;
 	CachedAttributeSink = nullptr;
 
 	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationSubsystem Deinitialized"));
@@ -101,21 +111,12 @@ FHktPlayerHandle UHktSimulationSubsystem::RegisterPlayer()
 	FHktPlayerHandle Handle;
 	Handle.Value = PlayerIndex;
 	
-	// Sink에 알림
-	if (IHktAttributeSink* Sink = GetAttributeSink())
-	{
-		Sink->OnPlayerRegistered(Handle);
-		
-		// 초기 속성 전송
-		TArray<float> InitialValues;
-		InitialValues.SetNumZeroed(static_cast<int32>(EHktAttributeType::Count));
-		const FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
-		for (int32 i = 0; i < static_cast<int32>(EHktAttribute::Count); ++i)
-		{
-			InitialValues[i] = Attrs.Values[i];
-		}
-		Sink->PushAllAttributes(Handle, InitialValues);
-	}
+	// Lockstep 방식: Sink 푸시 제거
+	// 서버: FAS(AttributeComponent)로 초기 속성 복제
+	// 클라이언트: Late Join 시 PostReplicatedAdd에서 스냅샷 수신
+	
+	// Simulation 실행 상태로 마크 (정상 Join)
+	bSimulationRunning = true;
 	
 	UE_LOG(LogHktSimulation, Log, TEXT("Registered player with Handle: %d"), Handle.Value);
 	return Handle;
@@ -128,18 +129,15 @@ void UHktSimulationSubsystem::UnregisterPlayer(const FHktPlayerHandle& PlayerHan
 		return;
 	}
 
-	// Sink에 알림
-	if (IHktAttributeSink* Sink = GetAttributeSink())
-	{
-		Sink->OnPlayerUnregistered(PlayerHandle);
-	}
+	// Lockstep 방식: Sink 알림 제거
+	// 서버/클라이언트 모두 로컬에서만 해제
 
 	EntityManager.FreePlayer(FPlayerHandle(PlayerHandle.Value));
 	UE_LOG(LogHktSimulation, Log, TEXT("Unregistered player with Handle: %d"), PlayerHandle.Value);
 }
 
 // ============================================================================
-// Player Attribute API - 즉시 Sink에 전달
+// Player Attribute API - Lockstep 방식 (Sink 푸시 제거)
 // ============================================================================
 
 void UHktSimulationSubsystem::SetPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Value)
@@ -149,17 +147,15 @@ void UHktSimulationSubsystem::SetPlayerAttribute(const FHktPlayerHandle& Handle,
 		return;
 	}
 
-	// 내부 DB 업데이트
+	// 내부 DB만 업데이트 (클라이언트/서버 모두 동일하게 로컬 계산)
 	const int32 PlayerIndex = Handle.Value;
 	if (EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) && EntityManager.Players.IsActive[PlayerIndex])
 	{
 		EntityManager.Players.Attributes[PlayerIndex].Set(static_cast<EHktAttribute>(Type), Value);
 		
-		// Sink에 즉시 전달
-		if (IHktAttributeSink* Sink = GetAttributeSink())
-		{
-			Sink->PushAttribute(Handle, Type, Value);
-		}
+		// Sink 푸시 제거 - Late Join용 FAS 업데이트는 별도 처리
+		// 서버: RegisterPlayer() 시 초기값만 설정, 이후 변경은 로컬 계산
+		// 클라이언트: 로컬 계산 결과만 사용
 	}
 }
 
@@ -173,16 +169,11 @@ void UHktSimulationSubsystem::ModifyPlayerAttribute(const FHktPlayerHandle& Hand
 	const int32 PlayerIndex = Handle.Value;
 	if (EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) && EntityManager.Players.IsActive[PlayerIndex])
 	{
-		// 내부 DB 수정
+		// 내부 DB만 수정
 		FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
 		Attrs.Modify(static_cast<EHktAttribute>(Type), Delta);
 		
-		// 새 값을 Sink에 즉시 전달
-		const float NewValue = Attrs.Get(static_cast<EHktAttribute>(Type));
-		if (IHktAttributeSink* Sink = GetAttributeSink())
-		{
-			Sink->PushAttribute(Handle, Type, NewValue);
-		}
+		// Sink 푸시 제거
 	}
 }
 
@@ -196,6 +187,62 @@ IHktAttributeSink* UHktSimulationSubsystem::GetAttributeSink() const
 		}
 	}
 	return CachedAttributeSink;
+}
+
+// ============================================================================
+// IHktSimulationProvider - Snapshot
+// ============================================================================
+
+bool UHktSimulationSubsystem::GetPlayerSnapshot(const FHktPlayerHandle& Handle, TArray<float>& OutValues) const
+{
+	if (!Handle.IsValid())
+	{
+		return false;
+	}
+
+	const int32 PlayerIndex = Handle.Value;
+	if (!EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) || !EntityManager.Players.IsActive[PlayerIndex])
+	{
+		return false;
+	}
+
+	// 현재 속성 값 수집
+	const FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
+	OutValues.SetNum(static_cast<int32>(EHktAttribute::Count));
+	for (int32 i = 0; i < static_cast<int32>(EHktAttribute::Count); ++i)
+	{
+		OutValues[i] = Attrs.Values[i];
+	}
+
+	return true;
+}
+
+void UHktSimulationSubsystem::InitializePlayerFromSnapshot(const FHktPlayerHandle& Handle, const TArray<float>& Values)
+{
+	if (!Handle.IsValid())
+	{
+		UE_LOG(LogHktSimulation, Warning, TEXT("InitializePlayerFromSnapshot: Invalid Handle"));
+		return;
+	}
+
+	const int32 PlayerIndex = Handle.Value;
+	if (!EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) || !EntityManager.Players.IsActive[PlayerIndex])
+	{
+		UE_LOG(LogHktSimulation, Warning, TEXT("InitializePlayerFromSnapshot: Player %d not valid"), PlayerIndex);
+		return;
+	}
+
+	// 서버 스냅샷으로 로컬 DB 초기화
+	FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
+	for (int32 i = 0; i < Values.Num() && i < static_cast<int32>(EHktAttribute::Count); ++i)
+	{
+		Attrs.Set(static_cast<EHktAttribute>(i), Values[i]);
+	}
+
+	// Simulation 실행 상태로 마크
+	bSimulationRunning = true;
+	
+	UE_LOG(LogHktSimulation, Log, TEXT("Initialized Player %d from snapshot (%d attributes)"), PlayerIndex, Values.Num());
 }
 
 // ============================================================================
@@ -268,6 +315,7 @@ void UHktSimulationSubsystem::ProcessIntentEvents(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ProcessIntentEvents);
 
+	// Lockstep 방식: 서버/클라이언트 모두 동일하게 처리
 	UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
 	if (!Service)
 	{
@@ -280,8 +328,9 @@ void UHktSimulationSubsystem::ProcessIntentEvents(float DeltaTime)
 		return;
 	}
 
+	// Lockstep: Fetch()로 모든 이벤트를 가져와서 처리 (Flush됨)
 	TArray<FHktIntentEvent> NewEvents;
-	if (!Provider->FetchNewEvents(LastProcessedFrame, NewEvents))
+	if (!Provider->Fetch(NewEvents))
 	{
 		return;
 	}
@@ -289,14 +338,21 @@ void UHktSimulationSubsystem::ProcessIntentEvents(float DeltaTime)
 	for (const FHktIntentEvent& Event : NewEvents)
 	{
 		ExecuteIntentEvent(Event);
-		LastProcessedFrame = FMath::Max(LastProcessedFrame, Event.FrameNumber);
+		LastProcessedEventId = FMath::Max(LastProcessedEventId, Event.EventId);
 		INC_DWORD_STAT(STAT_EventsProcessed);
 	}
 
+	// Commit은 서버만 호출 (EventBuffer 정리)
 	if (NewEvents.Num() > 0)
 	{
-		UE_LOG(LogHktSimulation, Verbose, TEXT("Processed %d events, Cursor updated to %d"), 
-			NewEvents.Num(), LastProcessedFrame);
+		if (GetWorld()->GetNetMode() != NM_Client)
+		{
+			FHktSimulationResult EmptyResult; // Lockstep: 속성 푸시 제거됨
+			Provider->Commit(LastProcessedEventId, EmptyResult);
+		}
+		
+		UE_LOG(LogHktSimulation, Verbose, TEXT("Processed %d events, LastEventId: %d"), 
+			NewEvents.Num(), LastProcessedEventId);
 	}
 }
 

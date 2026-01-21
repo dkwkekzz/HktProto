@@ -16,14 +16,50 @@ using FHktOpHandler = void (*)(FHktFlowVM& VM, uint8* Payload);
 
 namespace ECoreOp
 {
+	// === 기본 (0-9) ===
 	static constexpr HktOpCode None = 0;
 	static constexpr HktOpCode WaitTime = 1;
 	static constexpr HktOpCode WaitUntilDestroyed = 2;
+
+	// === 애니메이션 (10-19) ===
 	static constexpr HktOpCode PlayAnim = 10;
 	static constexpr HktOpCode SpawnProjectile = 11;
 	static constexpr HktOpCode DestroyUnit = 12;
+
+	// === 속성 (20-29) ===
 	static constexpr HktOpCode ModifyAttribute = 20;
 	static constexpr HktOpCode ExplodeAndDamage = 21;
+
+	// === 이동 (30-39) ===
+	static constexpr HktOpCode MoveTo = 30;           // 목표 위치로 이동 시작
+	static constexpr HktOpCode MoveForward = 31;      // 전방으로 이동
+	static constexpr HktOpCode Stop = 32;             // 이동 중지
+	static constexpr HktOpCode ApplyForce = 33;       // 힘 적용
+
+	// === 이벤트 대기 (40-49) ===
+	static constexpr HktOpCode WaitArrival = 40;      // 도착까지 대기
+	static constexpr HktOpCode WaitCollision = 41;    // 충돌까지 대기 (충돌 상대 Reg에 저장)
+	static constexpr HktOpCode WaitSignal = 42;       // 시그널 대기 (애니메이션 종료 등)
+	static constexpr HktOpCode WaitAny = 43;          // 복수 이벤트 중 하나 대기
+
+	// === 분기 (50-59) ===
+	static constexpr HktOpCode Branch = 50;           // 조건 분기 (이벤트 타입별)
+	static constexpr HktOpCode Jump = 51;             // 무조건 점프
+	static constexpr HktOpCode Halt = 52;             // 실행 종료
+
+	// === 범위 쿼리 (60-69) ===
+	static constexpr HktOpCode QuerySphere = 60;      // 구 범위 쿼리
+	static constexpr HktOpCode ForEachTarget = 61;    // 쿼리 결과 순회
+	static constexpr HktOpCode EndForEach = 62;       // 순회 종료
+
+	// === 엔티티 (70-79) ===
+	static constexpr HktOpCode SpawnEntity = 70;      // 엔티티 생성 (GameplayTag 기반)
+	static constexpr HktOpCode DestroyEntity = 71;    // 엔티티 파괴
+
+	// === 데미지 (80-89) ===
+	static constexpr HktOpCode SetDamage = 80;        // 직접 데미지
+	static constexpr HktOpCode ApplyDot = 81;         // DoT 적용
+
 	static constexpr HktOpCode EndOfStream = 255;
 }
 
