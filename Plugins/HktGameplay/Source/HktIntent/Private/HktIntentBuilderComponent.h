@@ -37,39 +37,27 @@ public:
     void CreateTargetAction();
 
     //-------------------------------------------------------------------------
-    // Data Access (IntentComponent에서 호출)
+    // Intent Submission
     //-------------------------------------------------------------------------
     
-    /** 주체 유닛 핸들 */
+    /** Intent를 검증하고 서버로 제출 */
     UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
-    FHktUnitHandle GetSubject() const { return SubjectHandle; }
-    
-    /** 명령 이벤트 태그 */
-    UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
-    FGameplayTag GetEventTag() const { return EventTag; }
-    
-    /** 대상 유닛 핸들 (유닛이 아니면 Invalid) */
-    UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
-    FHktUnitHandle GetTargetUnit() const { return TargetHandle; }
-    
-    /** 대상 위치 */
-    UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
-    FVector GetTargetLocation() const { return TargetLocation; }
+    void SubmitIntent();
 
     //-------------------------------------------------------------------------
-    // Validation
+    // Validation (Blueprint/Debug에서 조회)
     //-------------------------------------------------------------------------
     
     /** Subject와 Command가 유효한지 검사 */
-    UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
+    UFUNCTION(BlueprintPure, Category = "Hkt|IntentBuilder")
     bool IsValid() const;
     
     /** 제출 가능한 상태인지 검사 (Target 필요 여부 포함) */
-    UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
+    UFUNCTION(BlueprintPure, Category = "Hkt|IntentBuilder")
     bool IsReadyToSubmit() const;
     
     /** Target이 필요한 Command인지 */
-    UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
+    UFUNCTION(BlueprintPure, Category = "Hkt|IntentBuilder")
     bool IsTargetRequired() const { return bTargetRequired; }
 
     //-------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 Hkt Games. All Rights Reserved.
+// Copyright (c) 2026 Hkt Games. All Rights Reserved.
 
 #include "HktFlowSubsystem.h"
 #include "HktFlowBuilder.h"
@@ -75,46 +75,9 @@ TSharedPtr<IHktFlow> UHktFlowSubsystem::GetFlow(FGameplayTag Tag)
 
 void UHktFlowSubsystem::UpdateFlows(float DeltaTime)
 {
-    // 1. 모든 채널의 프로바이더로부터 변경된 이벤트를 가져옵니다.
-	UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
-    if (!Service)
-	{
-		return;
-	}
-
-	TScriptInterface<IHktIntentEventProvider> Provider = Service->GetIntentEventProvider();
-	if (!Provider)
-	{
-		return;
-	}
-
-    const int32 DefaultChannelId = 0;
-    TSharedPtr<IHktIntentChannel> Channel = Provider->GetChannel(DefaultChannelId);
-    if (!Channel)
-    {
-        return;
-    }
-
-	// FlushEvents 호출
-    TArray<FHktIntentEvent> Buffer;
-	if (!Channel->FlushEvents(Buffer))
-	{
-        return;
-	}
-
-    // 2. 이벤트를 순회하며 Flow 정의(Define) 수행
-    for (const FHktIntentEvent& Event : Buffer)
-    {
-        // 전역 레지스트리에서 Flow 인스턴스 가져오기 (CDO 개념 재활용)
-        if (TSharedPtr<IHktFlow> Flow = GetFlow(Event.EventTag))
-        {
-            FHktJobBuilder Builder;
-            
-            // Flow 정의: Builder에 작업(Job) 목록을 기록
-            // Flow 인스턴스는 상태가 없는 메타데이터이므로 안전하게 재사용 가능
-            Flow->DefineFlow(Builder, Event);
-
-            // TODO: Builder 내용을 JobSystem으로 전달
-        }
-    }
+    // NOTE: IntentEventProvider has been removed.
+    // Flow processing is now handled by UHktSimulationProcessSubsystem
+    // which iterates through UHktSimulationStashComponent instances.
+    // 
+    // This function is kept for potential future use with direct Flow registration.
 }

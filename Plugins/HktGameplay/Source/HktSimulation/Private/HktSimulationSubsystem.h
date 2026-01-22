@@ -10,22 +10,27 @@
 #include "HktSimulationSubsystem.generated.h"
 
 struct FHktIntentEvent;
+struct FHktIntentEventBatch;
+class UHktSimulationStashComponent;
 
 // 로깅 카테고리 선언
 DECLARE_LOG_CATEGORY_EXTERN(LogHktSimulation, Log, All);
 
 /**
  * World Subsystem for managing HktSimulation
- * - IntentEvent를 받아 FlowVM을 통해 시뮬레이션을 실행
- * - Entity/Player Database를 관리
- * - IHktSimulationProvider 구현으로 외부 모듈에 서비스 제공
  * 
- * 의존성 방향: HktSimulation → HktService (인터페이스) ← HktIntent
+ * 새로운 설계:
+ * - 모든 UHktSimulationStashComponent를 순회하며 이벤트 처리
+ * - IntentEventProvider 의존성 제거
+ * - 캐시 적중률 최적화를 위한 배치 처리 구조
+ * 
+ * 데이터 흐름:
+ * StashComponent → GetPendingBatches() → ProcessBatch() → StoreResult()
  */
 class FHktVMPool;
 
 UCLASS()
-class HKTSIMULATION_API UHktSimulationSubsystem : public UTickableWorldSubsystem, public IHktSimulationProvider
+class HKTSIMULATION_API UHktSimulationProcessSubsystem : public UTickableWorldSubsystem, public IHktSimulationProvider
 {
 	GENERATED_BODY()
 
@@ -40,7 +45,7 @@ public:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 	// Helper to get the subsystem from a world context
-	static UHktSimulationSubsystem* Get(const UObject* WorldContextObject);
+	static UHktSimulationProcessSubsystem* Get(const UObject* WorldContextObject);
 
 	// --- IHktSimulationProvider 구현 ---
 	
@@ -55,6 +60,20 @@ public:
 	
 	/** 플레이어 속성 스냅샷으로 초기화 */
 	virtual void InitializePlayerFromSnapshot(const FHktPlayerHandle& Handle, const TArray<float>& Values) override;
+
+	// --- StashComponent Management ---
+	
+	/** StashComponent 등록 (BeginPlay에서 자동 호출) */
+	void RegisterStashComponent(UHktSimulationStashComponent* StashComponent);
+	
+	/** StashComponent 등록 해제 (EndPlay에서 자동 호출) */
+	void UnregisterStashComponent(UHktSimulationStashComponent* StashComponent);
+	
+	/** 등록된 StashComponent 목록 조회 */
+	const TArray<TWeakObjectPtr<UHktSimulationStashComponent>>& GetRegisteredStashComponents() const 
+	{ 
+		return RegisteredStashComponents; 
+	}
 
 	// --- Entity Management API ---
 	
@@ -76,25 +95,31 @@ public:
 
 	// --- Lockstep Event Management ---
 	
-	/** 현재 처리 중인 마지막 EventId 조회 */
-	int32 GetLastProcessedEventId() const { return LastProcessedEventId; }
+	/** 현재 처리 중인 마지막 프레임 번호 조회 */
+	int32 GetLastProcessedFrameNumber() const { return LastProcessedFrameNumber; }
 
-	// --- Player Attribute API (Lockstep 방식 - Sink 제거) ---
+	// --- Player Attribute API ---
 	
-	/** 플레이어 속성 설정 (로컬 DB만 업데이트, 서버는 별도로 FAS 동기화) */
+	/** 플레이어 속성 설정 (로컬 DB만 업데이트) */
 	void SetPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Value);
 	
-	/** 플레이어 속성 수정 (Delta 적용, 로컬 DB만 업데이트) */
+	/** 플레이어 속성 수정 (Delta 적용) */
 	void ModifyPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Delta);
 
-	// --- Lockstep Synchronization ---
+	// --- Synchronization ---
 	
 	/** Simulation이 실행 중인지 체크 (Late Join 감지용) */
 	bool IsSimulationRunning() const { return bSimulationRunning; }
 
 protected:
-	/** 매 틱마다 IntentEvent를 수집하고 처리 (Sliding Window 방식) */
-	void ProcessIntentEvents(float DeltaTime);
+	/** 모든 StashComponent를 순회하며 이벤트 처리 */
+	void ProcessStashComponents(float DeltaTime);
+	
+	/** 단일 StashComponent 처리 */
+	void ProcessStashComponent(UHktSimulationStashComponent* StashComponent);
+	
+	/** 배치 내의 이벤트들을 처리 */
+	void ProcessBatch(const FHktIntentEventBatch& Batch, FHktSimulationResult& OutResult);
 
 	/** 활성 VM들을 틱 */
 	void TickActiveVMs(float DeltaTime);
@@ -106,6 +131,12 @@ protected:
 	void BuildBytecodeForEvent(FHktFlowVM& VM, const FHktIntentEvent& Event);
 
 private:
+	// --- StashComponent Management ---
+	
+	/** 등록된 StashComponent 목록 */
+	UPROPERTY()
+	TArray<TWeakObjectPtr<UHktSimulationStashComponent>> RegisteredStashComponents;
+
 	// Global Entity Manager
 	FHktEntityManager EntityManager;
 
@@ -116,7 +147,6 @@ private:
 	TArray<FHktFlowVM*> ActiveVMs;
 
 	// [Optimized] External -> Internal Handle Mapping only
-	// Reverse mapping (Internal -> External) is stored in EntityDatabase.ExternalIds
 	TMap<int32, FUnitHandle> ExternalToInternalMap;
 
 	// 다음 외부 ID 생성용 카운터
@@ -124,20 +154,14 @@ private:
 
 	// --- Lockstep Event Processing ---
 	
-	// 마지막 처리 EventId 추적
-	int32 LastProcessedEventId = 0;
-	
-	// 시뮬레이션 중 속성 변경 누적
-	FHktSimulationResult PendingResult;
+	// 마지막 처리 프레임 번호 추적
+	int32 LastProcessedFrameNumber = 0;
 
-	// --- Lockstep Synchronization ---
+	// --- Synchronization ---
 	
 	// Simulation 실행 상태 플래그 (Late Join 감지용)
 	bool bSimulationRunning = false;
-	
-	// IHktAttributeSink 캐시 (더 이상 사용하지 않음 - Late Join용 FAS만 서버에서 관리)
-	mutable IHktAttributeSink* CachedAttributeSink = nullptr;
-	
-	/** Sink 조회 헬퍼 (더 이상 푸시용으로 사용 안 함) */
-	IHktAttributeSink* GetAttributeSink() const;
 };
+
+// Type alias for backward compatibility (deprecated)
+using UHktSimulationSubsystem = UHktSimulationProcessSubsystem;

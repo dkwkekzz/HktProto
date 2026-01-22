@@ -4,7 +4,6 @@
 
 #include "Subsystems/WorldSubsystem.h"
 #include "HktFlowInterface.h"
-#include "IHktJobProvider.h"
 #include "HktFlowSubsystem.generated.h"
 
 // 로깅 카테고리 선언
@@ -17,7 +16,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogHktFlow, Log, All);
  * 이벤트 발생 시 Flow를 생성 및 정의(Define)하고, 이벤트 종료 시 정리하는 역할을 담당합니다.
  */
 UCLASS()
-class HKTFLOW_API UHktFlowSubsystem : public UTickableWorldSubsystem, public IHktJobProvider
+class HKTFLOW_API UHktFlowSubsystem : public UTickableWorldSubsystem
 {
     GENERATED_BODY()
 

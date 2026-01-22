@@ -1,6 +1,7 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktSimulationSubsystem.h"
+#include "HktSimulationStashComponent.h"
 #include "HktFlowBuilder.h"
 #include "HktIntentInterface.h"
 #include "HktServiceSubsystem.h"
@@ -13,7 +14,7 @@
 
 DEFINE_LOG_CATEGORY(LogHktSimulation);
 
-void UHktSimulationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UHktSimulationProcessSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
@@ -31,10 +32,10 @@ void UHktSimulationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// Prewarm bytecode pool
 	FBytecodePool::Prewarm(20);
 
-	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationSubsystem Initialized"));
+	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationProcessSubsystem Initialized"));
 }
 
-void UHktSimulationSubsystem::Deinitialize()
+void UHktSimulationProcessSubsystem::Deinitialize()
 {
 	// Provider 해제
 	if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
@@ -52,25 +53,27 @@ void UHktSimulationSubsystem::Deinitialize()
 	}
 	ActiveVMs.Empty();
 	
+	// Clear registered components
+	RegisteredStashComponents.Empty();
+	
 	VMPool.Reset();
 	FBytecodePool::Clear();
 	
 	ExternalToInternalMap.Empty();
-	LastProcessedEventId = 0;
+	LastProcessedFrameNumber = 0;
 	bSimulationRunning = false;
-	CachedAttributeSink = nullptr;
 
-	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationSubsystem Deinitialized"));
+	UE_LOG(LogHktSimulation, Log, TEXT("HktSimulationProcessSubsystem Deinitialized"));
 
 	Super::Deinitialize();
 }
 
-void UHktSimulationSubsystem::Tick(float DeltaTime)
+void UHktSimulationProcessSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 1. IntentEvent 수집 및 처리 (Sliding Window 방식)
-	ProcessIntentEvents(DeltaTime);
+	// 1. 모든 StashComponent를 순회하며 이벤트 처리
+	ProcessStashComponents(DeltaTime);
 
 	// 2. 활성 VM들 틱
 	TickActiveVMs(DeltaTime);
@@ -79,17 +82,17 @@ void UHktSimulationSubsystem::Tick(float DeltaTime)
 	CleanupFinishedVMs();
 }
 
-TStatId UHktSimulationSubsystem::GetStatId() const
+TStatId UHktSimulationProcessSubsystem::GetStatId() const
 {
-	RETURN_QUICK_DECLARE_CYCLE_STAT(UHktSimulationSubsystem, STATGROUP_Tickables);
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UHktSimulationProcessSubsystem, STATGROUP_Tickables);
 }
 
-bool UHktSimulationSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
+bool UHktSimulationProcessSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
 }
 
-UHktSimulationSubsystem* UHktSimulationSubsystem::Get(const UObject* WorldContextObject)
+UHktSimulationProcessSubsystem* UHktSimulationProcessSubsystem::Get(const UObject* WorldContextObject)
 {
 	if (!WorldContextObject)
 	{
@@ -97,69 +100,95 @@ UHktSimulationSubsystem* UHktSimulationSubsystem::Get(const UObject* WorldContex
 	}
 
 	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
-	return World ? World->GetSubsystem<UHktSimulationSubsystem>() : nullptr;
+	return World ? World->GetSubsystem<UHktSimulationProcessSubsystem>() : nullptr;
+}
+
+// ============================================================================
+// StashComponent Management
+// ============================================================================
+
+void UHktSimulationProcessSubsystem::RegisterStashComponent(UHktSimulationStashComponent* StashComponent)
+{
+	if (!StashComponent)
+	{
+		return;
+	}
+	
+	// 중복 등록 방지
+	if (RegisteredStashComponents.ContainsByPredicate([StashComponent](const TWeakObjectPtr<UHktSimulationStashComponent>& Ptr) {
+		return Ptr.Get() == StashComponent;
+	}))
+	{
+		return;
+	}
+	
+	RegisteredStashComponents.Add(StashComponent);
+	
+	UE_LOG(LogHktSimulation, Log, TEXT("RegisterStashComponent: Total=%d"), RegisteredStashComponents.Num());
+}
+
+void UHktSimulationProcessSubsystem::UnregisterStashComponent(UHktSimulationStashComponent* StashComponent)
+{
+	if (!StashComponent)
+	{
+		return;
+	}
+	
+	RegisteredStashComponents.RemoveAll([StashComponent](const TWeakObjectPtr<UHktSimulationStashComponent>& Ptr) {
+		return !Ptr.IsValid() || Ptr.Get() == StashComponent;
+	});
+	
+	UE_LOG(LogHktSimulation, Log, TEXT("UnregisterStashComponent: Total=%d"), RegisteredStashComponents.Num());
 }
 
 // ============================================================================
 // Player Management
 // ============================================================================
 
-FHktPlayerHandle UHktSimulationSubsystem::RegisterPlayer()
+FHktPlayerHandle UHktSimulationProcessSubsystem::RegisterPlayer()
 {
 	const int32 PlayerIndex = EntityManager.AllocPlayer();
 	
 	FHktPlayerHandle Handle;
 	Handle.Value = PlayerIndex;
 	
-	// Lockstep 방식: Sink 푸시 제거
-	// 서버: FAS(AttributeComponent)로 초기 속성 복제
-	// 클라이언트: Late Join 시 PostReplicatedAdd에서 스냅샷 수신
-	
-	// Simulation 실행 상태로 마크 (정상 Join)
+	// Simulation 실행 상태로 마크
 	bSimulationRunning = true;
 	
 	UE_LOG(LogHktSimulation, Log, TEXT("Registered player with Handle: %d"), Handle.Value);
 	return Handle;
 }
 
-void UHktSimulationSubsystem::UnregisterPlayer(const FHktPlayerHandle& PlayerHandle)
+void UHktSimulationProcessSubsystem::UnregisterPlayer(const FHktPlayerHandle& PlayerHandle)
 {
 	if (!PlayerHandle.IsValid())
 	{
 		return;
 	}
 
-	// Lockstep 방식: Sink 알림 제거
-	// 서버/클라이언트 모두 로컬에서만 해제
-
 	EntityManager.FreePlayer(FPlayerHandle(PlayerHandle.Value));
 	UE_LOG(LogHktSimulation, Log, TEXT("Unregistered player with Handle: %d"), PlayerHandle.Value);
 }
 
 // ============================================================================
-// Player Attribute API - Lockstep 방식 (Sink 푸시 제거)
+// Player Attribute API
 // ============================================================================
 
-void UHktSimulationSubsystem::SetPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Value)
+void UHktSimulationProcessSubsystem::SetPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Value)
 {
 	if (!Handle.IsValid())
 	{
 		return;
 	}
 
-	// 내부 DB만 업데이트 (클라이언트/서버 모두 동일하게 로컬 계산)
 	const int32 PlayerIndex = Handle.Value;
 	if (EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) && EntityManager.Players.IsActive[PlayerIndex])
 	{
 		EntityManager.Players.Attributes[PlayerIndex].Set(static_cast<EHktAttribute>(Type), Value);
-		
-		// Sink 푸시 제거 - Late Join용 FAS 업데이트는 별도 처리
-		// 서버: RegisterPlayer() 시 초기값만 설정, 이후 변경은 로컬 계산
-		// 클라이언트: 로컬 계산 결과만 사용
 	}
 }
 
-void UHktSimulationSubsystem::ModifyPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Delta)
+void UHktSimulationProcessSubsystem::ModifyPlayerAttribute(const FHktPlayerHandle& Handle, EHktAttributeType Type, float Delta)
 {
 	if (!Handle.IsValid())
 	{
@@ -169,31 +198,16 @@ void UHktSimulationSubsystem::ModifyPlayerAttribute(const FHktPlayerHandle& Hand
 	const int32 PlayerIndex = Handle.Value;
 	if (EntityManager.Players.Attributes.IsValidIndex(PlayerIndex) && EntityManager.Players.IsActive[PlayerIndex])
 	{
-		// 내부 DB만 수정
 		FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
 		Attrs.Modify(static_cast<EHktAttribute>(Type), Delta);
-		
-		// Sink 푸시 제거
 	}
-}
-
-IHktAttributeSink* UHktSimulationSubsystem::GetAttributeSink() const
-{
-	if (!CachedAttributeSink)
-	{
-		if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
-		{
-			CachedAttributeSink = Service->GetAttributeSink().GetInterface();
-		}
-	}
-	return CachedAttributeSink;
 }
 
 // ============================================================================
 // IHktSimulationProvider - Snapshot
 // ============================================================================
 
-bool UHktSimulationSubsystem::GetPlayerSnapshot(const FHktPlayerHandle& Handle, TArray<float>& OutValues) const
+bool UHktSimulationProcessSubsystem::GetPlayerSnapshot(const FHktPlayerHandle& Handle, TArray<float>& OutValues) const
 {
 	if (!Handle.IsValid())
 	{
@@ -206,7 +220,6 @@ bool UHktSimulationSubsystem::GetPlayerSnapshot(const FHktPlayerHandle& Handle, 
 		return false;
 	}
 
-	// 현재 속성 값 수집
 	const FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
 	OutValues.SetNum(static_cast<int32>(EHktAttribute::Count));
 	for (int32 i = 0; i < static_cast<int32>(EHktAttribute::Count); ++i)
@@ -217,7 +230,7 @@ bool UHktSimulationSubsystem::GetPlayerSnapshot(const FHktPlayerHandle& Handle, 
 	return true;
 }
 
-void UHktSimulationSubsystem::InitializePlayerFromSnapshot(const FHktPlayerHandle& Handle, const TArray<float>& Values)
+void UHktSimulationProcessSubsystem::InitializePlayerFromSnapshot(const FHktPlayerHandle& Handle, const TArray<float>& Values)
 {
 	if (!Handle.IsValid())
 	{
@@ -232,14 +245,12 @@ void UHktSimulationSubsystem::InitializePlayerFromSnapshot(const FHktPlayerHandl
 		return;
 	}
 
-	// 서버 스냅샷으로 로컬 DB 초기화
 	FHktAttributeSet& Attrs = EntityManager.Players.Attributes[PlayerIndex];
 	for (int32 i = 0; i < Values.Num() && i < static_cast<int32>(EHktAttribute::Count); ++i)
 	{
 		Attrs.Set(static_cast<EHktAttribute>(i), Values[i]);
 	}
 
-	// Simulation 실행 상태로 마크
 	bSimulationRunning = true;
 	
 	UE_LOG(LogHktSimulation, Log, TEXT("Initialized Player %d from snapshot (%d attributes)"), PlayerIndex, Values.Num());
@@ -249,7 +260,7 @@ void UHktSimulationSubsystem::InitializePlayerFromSnapshot(const FHktPlayerHandl
 // Entity Management
 // ============================================================================
 
-FUnitHandle UHktSimulationSubsystem::GetOrCreateInternalHandle(int32 ExternalUnitId, FVector Location, FRotator Rotation)
+FUnitHandle UHktSimulationProcessSubsystem::GetOrCreateInternalHandle(int32 ExternalUnitId, FVector Location, FRotator Rotation)
 {
 	SCOPE_CYCLE_COUNTER(STAT_HandleMapping);
 
@@ -279,7 +290,7 @@ FUnitHandle UHktSimulationSubsystem::GetOrCreateInternalHandle(int32 ExternalUni
 	return NewHandle;
 }
 
-int32 UHktSimulationSubsystem::GetExternalUnitId(FUnitHandle InternalHandle) const
+int32 UHktSimulationProcessSubsystem::GetExternalUnitId(FUnitHandle InternalHandle) const
 {
 	if (EntityManager.IsUnitValid(InternalHandle))
 	{
@@ -292,7 +303,7 @@ int32 UHktSimulationSubsystem::GetExternalUnitId(FUnitHandle InternalHandle) con
 // VM Management
 // ============================================================================
 
-void UHktSimulationSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
+void UHktSimulationProcessSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
 {
 	FUnitHandle SubjectHandle = GetOrCreateInternalHandle(Event.Subject.Value, Event.Location);
 	FHktFlowVM* NewVM = VMPool->Acquire(GetWorld(), &EntityManager, SubjectHandle);
@@ -302,8 +313,8 @@ void UHktSimulationSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
 	if (NewVM->Bytecode.Num() > 0)
 	{
 		ActiveVMs.Add(NewVM);
-		UE_LOG(LogHktSimulation, Verbose, TEXT("Queued VM for IntentEvent: %s (EventId: %d)"), 
-			*Event.EventTag.ToString(), Event.EventId);
+		UE_LOG(LogHktSimulation, Verbose, TEXT("Queued VM for IntentEvent: %s (Frame: %d, EventId: %d)"), 
+			*Event.EventTag.ToString(), Event.FrameNumber, Event.EventId);
 	}
 	else
 	{
@@ -311,52 +322,80 @@ void UHktSimulationSubsystem::ExecuteIntentEvent(const FHktIntentEvent& Event)
 	}
 }
 
-void UHktSimulationSubsystem::ProcessIntentEvents(float DeltaTime)
+// ============================================================================
+// StashComponent Processing
+// ============================================================================
+
+void UHktSimulationProcessSubsystem::ProcessStashComponents(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ProcessIntentEvents);
 
-	// Lockstep 방식: 서버/클라이언트 모두 동일하게 처리
-	UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld());
-	if (!Service)
-	{
-		return;
-	}
+	// 무효한 참조 정리
+	RegisteredStashComponents.RemoveAll([](const TWeakObjectPtr<UHktSimulationStashComponent>& Ptr) {
+		return !Ptr.IsValid();
+	});
 
-	TScriptInterface<IHktIntentEventProvider> Provider = Service->GetIntentEventProvider();
-	if (!Provider)
+	// 모든 StashComponent 순회
+	for (const TWeakObjectPtr<UHktSimulationStashComponent>& StashPtr : RegisteredStashComponents)
 	{
-		return;
-	}
-
-	// Lockstep: Fetch()로 모든 이벤트를 가져와서 처리 (Flush됨)
-	TArray<FHktIntentEvent> NewEvents;
-	if (!Provider->Fetch(NewEvents))
-	{
-		return;
-	}
-
-	for (const FHktIntentEvent& Event : NewEvents)
-	{
-		ExecuteIntentEvent(Event);
-		LastProcessedEventId = FMath::Max(LastProcessedEventId, Event.EventId);
-		INC_DWORD_STAT(STAT_EventsProcessed);
-	}
-
-	// Commit은 서버만 호출 (EventBuffer 정리)
-	if (NewEvents.Num() > 0)
-	{
-		if (GetWorld()->GetNetMode() != NM_Client)
+		if (UHktSimulationStashComponent* StashComponent = StashPtr.Get())
 		{
-			FHktSimulationResult EmptyResult; // Lockstep: 속성 푸시 제거됨
-			Provider->Commit(LastProcessedEventId, EmptyResult);
+			ProcessStashComponent(StashComponent);
 		}
-		
-		UE_LOG(LogHktSimulation, Verbose, TEXT("Processed %d events, LastEventId: %d"), 
-			NewEvents.Num(), LastProcessedEventId);
 	}
 }
 
-void UHktSimulationSubsystem::TickActiveVMs(float DeltaTime)
+void UHktSimulationProcessSubsystem::ProcessStashComponent(UHktSimulationStashComponent* StashComponent)
+{
+	if (!StashComponent)
+	{
+		return;
+	}
+
+	const TArray<FHktIntentEventBatch>& PendingBatches = StashComponent->GetPendingBatches();
+	if (PendingBatches.Num() == 0)
+	{
+		return;
+	}
+
+	// 배치들을 프레임 순서대로 처리
+	int32 ProcessedFrameNumber = 0;
+	FHktSimulationResult CombinedResult;
+	
+	for (const FHktIntentEventBatch& Batch : PendingBatches)
+	{
+		// 캐시 적중률 최적화: 동일 타입 이벤트를 묶어서 처리
+		ProcessBatch(Batch, CombinedResult);
+		ProcessedFrameNumber = FMath::Max(ProcessedFrameNumber, Batch.FrameNumber);
+		
+		INC_DWORD_STAT_BY(STAT_EventsProcessed, Batch.Events.Num());
+	}
+
+	// 처리 완료 후 결과 저장 및 큐 정리
+	if (ProcessedFrameNumber > 0)
+	{
+		StashComponent->StoreResult(ProcessedFrameNumber, CombinedResult);
+		LastProcessedFrameNumber = FMath::Max(LastProcessedFrameNumber, ProcessedFrameNumber);
+		
+		UE_LOG(LogHktSimulation, Verbose, TEXT("ProcessStashComponent: Processed %d batches up to frame %d"), 
+			PendingBatches.Num(), ProcessedFrameNumber);
+	}
+}
+
+void UHktSimulationProcessSubsystem::ProcessBatch(const FHktIntentEventBatch& Batch, FHktSimulationResult& OutResult)
+{
+	// 캐시 적중률 최적화를 위해 동일 타입 이벤트를 그룹화
+	// (현재는 순차 처리, 향후 SoA 구조 활용 가능)
+	
+	for (const FHktIntentEvent& Event : Batch.Events)
+	{
+		ExecuteIntentEvent(Event);
+	}
+	
+	OutResult.ProcessedFrameNumber = Batch.FrameNumber;
+}
+
+void UHktSimulationProcessSubsystem::TickActiveVMs(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_TickVMs);
 
@@ -371,7 +410,7 @@ void UHktSimulationSubsystem::TickActiveVMs(float DeltaTime)
 	SET_DWORD_STAT(STAT_ActiveVMs, ActiveVMs.Num());
 }
 
-void UHktSimulationSubsystem::CleanupFinishedVMs()
+void UHktSimulationProcessSubsystem::CleanupFinishedVMs()
 {
 	SCOPE_CYCLE_COUNTER(STAT_CleanupFinishedVMs);
 
@@ -401,7 +440,7 @@ void UHktSimulationSubsystem::CleanupFinishedVMs()
 	SET_DWORD_STAT(STAT_BytecodeBuffersPooled, AvailableBuffers);
 }
 
-void UHktSimulationSubsystem::BuildBytecodeForEvent(FHktFlowVM& VM, const FHktIntentEvent& Event)
+void UHktSimulationProcessSubsystem::BuildBytecodeForEvent(FHktFlowVM& VM, const FHktIntentEvent& Event)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BuildBytecode);
 

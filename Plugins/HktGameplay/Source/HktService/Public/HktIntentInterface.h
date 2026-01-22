@@ -12,7 +12,7 @@
  * Can be an input action, a state change, or an entity existence.
  */
 USTRUCT(BlueprintType)
-struct FHktIntentEvent
+struct HKTSERVICE_API FHktIntentEvent
 {
 	GENERATED_BODY()
 
@@ -61,22 +61,33 @@ struct FHktIntentEvent
     }
 };
 
-// --- 이벤트 그룹 (외부 제공용 컨테이너) ---
+/**
+ * [Intent Event Batch]
+ * 프레임 번호와 해당 프레임의 이벤트들을 묶은 배치 구조체
+ * GameMode → IntentEventComponent → IHktSimulationProvider로 전달됨
+ */
 USTRUCT(BlueprintType)
-struct FHktIntentEventGroup
+struct HKTSERVICE_API FHktIntentEventBatch
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly)
-    int32 GroupID = -1;
+	FHktIntentEventBatch()
+		: FrameNumber(0)
+	{}
 
-    // 이 그룹에 속한 유닛들
-    UPROPERTY(BlueprintReadOnly)
-    TSet<FHktUnitHandle> Members;
+	FHktIntentEventBatch(int32 InFrameNumber)
+		: FrameNumber(InFrameNumber)
+	{}
 
-    // 이 그룹을 구성하는 이벤트들 (EventContainer)
-    UPROPERTY(BlueprintReadOnly)
-    TArray<FHktIntentEvent> Events;
+	// 이 배치의 프레임 번호
+	UPROPERTY(BlueprintReadOnly)
+	int32 FrameNumber;
+
+	// 이 프레임에 포함된 이벤트들
+	UPROPERTY(BlueprintReadOnly)
+	TArray<FHktIntentEvent> Events;
+
+	bool IsEmpty() const { return Events.Num() == 0; }
 };
 
 // --- Lockstep 시뮬레이션 결과 구조 ---
@@ -97,55 +108,22 @@ struct FHktAttributeChanges
 
 /**
  * 시뮬레이션 처리 결과
- * Commit 시 IntentSubsystem에 전달됨
+ * IHktSimulationProvider에서 처리 후 IntentEventComponent에 저장
  */
 USTRUCT(BlueprintType)
-struct FHktSimulationResult
+struct HKTSERVICE_API FHktSimulationResult
 {
     GENERATED_BODY()
+    
+    FHktSimulationResult()
+        : ProcessedFrameNumber(0)
+    {}
+    
+    // 처리된 프레임 번호
+    UPROPERTY(BlueprintReadOnly)
+    int32 ProcessedFrameNumber;
     
     // 플레이어별 속성 변경 내역
     UPROPERTY()
     TMap<int32, FHktAttributeChanges> PlayerAttributeChanges; // Key = PlayerHandle.Value
-};
-
-UINTERFACE(MinimalAPI, BlueprintType)
-class UHktIntentEventProvider : public UInterface
-{
-	GENERATED_BODY()
-};
-
-/**
- * Interface for a system that provides Intent Events to consumers (Simulation).
- * Implemented by HktIntent module.
- * 
- * Lockstep 방식:
- * - Fetch: 모든 이벤트 History를 반환하고 Flush
- * - Process: Simulation이 이벤트를 처리하고 결과 누적
- * - Commit: 처리 결과를 반영하고 EventBuffer 정리
- */
-class HKTSERVICE_API IHktIntentEventProvider
-{
-	GENERATED_BODY()
-
-public:
-	/**
-	 * [Lockstep] 모든 이벤트 History를 반환하고 Flush
-	 * @param OutEvents 처리해야 할 모든 이벤트 (반환 후 History는 비워짐)
-	 * @return 이벤트가 있으면 true
-	 */
-	virtual bool Fetch(TArray<FHktIntentEvent>& OutEvents) = 0;
-	
-	/**
-	 * [Lockstep] 시뮬레이션 처리 결과를 Commit
-	 * @param LastProcessedEventId 마지막으로 처리한 이벤트 ID
-	 * @param Result 시뮬레이션 결과 (속성 변경 내역)
-	 */
-	virtual void Commit(int32 LastProcessedEventId, const FHktSimulationResult& Result) = 0;
-
-	/** 현재 히스토리의 가장 최신 프레임 번호 반환 */
-	virtual int32 GetLatestFrameNumber() const = 0;
-
-	/** 현재 히스토리의 가장 오래된 프레임 번호 반환 (Late Join 시 시작점) */
-	virtual int32 GetOldestFrameNumber() const = 0;
 };

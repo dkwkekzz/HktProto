@@ -1,153 +1,118 @@
+// Copyright Hkt Studios, Inc. All Rights Reserved.
+
 #include "HktIntentEventComponent.h"
-#include "HktIntentBuilderComponent.h"
 #include "HktIntentGameMode.h"
-#include "HktIntentSubsystem.h"
+#include "HktServiceSubsystem.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
 
-// ============================================================================
-// [FAS Item Logic]
-// ============================================================================
-
-void FHktEventItem::PostReplicatedAdd(const FHktEventContainer& InArraySerializer)
-{
-    // IntentSubsystem에 추가 (히스토리 관리)
-    // 클라이언트: ProcessIntentEvents()에서 Fetch()로 처리됨
-    if (InArraySerializer.OwnerSubsystem)
-    {
-        InArraySerializer.OwnerSubsystem->AddEvent(Event);
-    }
-}
-
-void FHktEventItem::PostReplicatedChange(const FHktEventContainer& InArraySerializer)
-{
-    // Lockstep 방식에서는 Update 없음 (추가만)
-    // 혹시 발생하면 로그
-    UE_LOG(LogTemp, Warning, TEXT("[FHktEventItem] PostReplicatedChange called - unexpected in Lockstep mode"));
-}
-
-void FHktEventItem::PreReplicatedRemove(const FHktEventContainer& InArraySerializer)
-{
-    // Lockstep 방식에서는 Commit 시 서버에서만 제거
-    // 클라이언트에서 제거 복제되면 로그만 남김
-    UE_LOG(LogTemp, Verbose, TEXT("[FHktEventItem] PreReplicatedRemove called for EventId: %d"), Event.EventId);
-}
-
-FHktEventItem& FHktEventContainer::AddOrUpdateItem(const FHktEventItem& Item)
-{
-    // Lockstep 방식: 추가만 허용, Update는 불필요
-    FHktEventItem& NewItem = Items.Add_GetRef(Item);
-    MarkItemDirty(NewItem);
-    
-    // 서버에서 직접 Subsystem에 동기화
-    if (OwnerSubsystem)
-    {
-        OwnerSubsystem->AddEvent(NewItem.Event);
-    }
-    
-    return NewItem;
-}
-
-// ============================================================================
-// [Component Logic]
-// ============================================================================
-
 UHktIntentEventComponent::UHktIntentEventComponent()
 {
-    SetIsReplicatedByDefault(true);
-    LocalIntentSequence = 0;
+	SetIsReplicatedByDefault(true);
 }
 
 void UHktIntentEventComponent::BeginPlay()
 {
-    Super::BeginPlay();
+	Super::BeginPlay();
 
-    // Subsystem 캐싱
-    EventBuffer.OwnerSubsystem = UHktIntentSubsystem::Get(GetWorld());
-	
-    if (UWorld* World = GetWorld())
-    {
-        // ChannelId 설정 (GameMode에서 가져옴)
-        if (AHktIntentGameMode* GameMode = World->GetAuthGameMode<AHktIntentGameMode>())
-        {
-            EventBuffer.ChannelId = GameMode->GetChannelId();
-        }
-    }
+	if (UHktServiceSubsystem* Service = UHktServiceSubsystem::Get(GetWorld()))
+	{
+		SimulationProvider = Service->GetSimulationProvider();
+	}
+
+	if (AHktIntentGameMode* GameMode = AHktIntentGameMode::Get(GetWorld()))
+	{
+		GameMode->RegisterIntentEventComponent(this);
+	}
+}
+
+void UHktIntentEventComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	if (AHktIntentGameMode* GameMode = AHktIntentGameMode::Get(GetWorld()))
+	{
+		GameMode->UnregisterIntentEventComponent(this);
+	}
 }
 
 void UHktIntentEventComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-    DOREPLIFETIME_CONDITION(UHktIntentEventComponent, EventBuffer, COND_None);
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// Late-Join 클라이언트를 위한 Replication 설정
+	DOREPLIFETIME_CONDITION(UHktIntentEventComponent, ProcessingIntentEventBatch, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(UHktIntentEventComponent, HktSimulationModel, COND_InitialOnly);
 }
 
-void UHktIntentEventComponent::SubmitIntent(UHktIntentBuilderComponent* Builder)
+// ============================================================================
+// Step 1: Client -> Server (Intent Submission)
+// ============================================================================
+
+void UHktIntentEventComponent::NotifyIntent(const FHktIntentEvent& IntentEvent)
 {
-    if (!Builder)
-    {
-        UE_LOG(LogTemp, Error, TEXT("IntentBuilder is null"));
-        return;
-    }
-
-    if (!Builder->IsReadyToSubmit())
-    {
-        UE_LOG(LogTemp, Error, TEXT("IntentBuilder is not ready to submit"));
-        return;
-    }
-
-    // 클라이언트(AutonomousProxy)인 경우에만 서버로 전송
-    if (GetOwnerRole() != ROLE_AutonomousProxy)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Not an autonomous proxy, role: %d"), GetOwnerRole());
-        return;
-    }
-
-    // Builder에서 직접 데이터 접근
-    FHktIntentEvent NewEvent;
-    NewEvent.EventId = ++LocalIntentSequence;
-    NewEvent.Subject = Builder->GetSubject();
-    NewEvent.EventTag = Builder->GetEventTag();
-    NewEvent.Target = Builder->GetTargetUnit();
-    NewEvent.Location = Builder->GetTargetLocation();
-
-    Server_ReceiveEvent(NewEvent);
+	// 클라이언트에서 Server RPC 호출
+	Server_NotifyIntent(IntentEvent);
 }
 
-void UHktIntentEventComponent::Server_ReceiveEvent_Implementation(FHktIntentEvent PendingEvent)
+void UHktIntentEventComponent::Server_NotifyIntent_Implementation(FHktIntentEvent IntentEvent)
 {
-    // GameMode에서 FrameNumber와 ChannelId 설정
-    if (UWorld* World = GetWorld())
-    {
-        if (AHktIntentGameMode* GameMode = World->GetAuthGameMode<AHktIntentGameMode>())
-        {
-            PendingEvent.FrameNumber = GameMode->GetServerFrame();
-        }
-    }
-    
-    // 버퍼에 추가 (자동으로 클라이언트에 복제됨)
-    EventBuffer.AddOrUpdateItem(FHktEventItem(PendingEvent));
+	// 서버에서만 PendingIntentEvents 배열에 의도를 추가합니다.
+	PendingIntentEvents.Add(MoveTemp(IntentEvent));
+	
+	UE_LOG(LogTemp, Verbose, TEXT("[HktIntentEventComponent] Server received and queued intent: Tag=%s"), *IntentEvent.EventTag.ToString());
 }
 
-bool UHktIntentEventComponent::Server_ReceiveEvent_Validate(FHktIntentEvent PendingEvent)
+bool UHktIntentEventComponent::Server_NotifyIntent_Validate(FHktIntentEvent IntentEvent)
 {
-    return true; 
+	return true;
 }
 
-void UHktIntentEventComponent::RemoveProcessedEvents(int32 LastProcessedEventId)
+// ============================================================================
+// Step 2: Server -> Client (Batch Distribution & Server Simulation)
+// ============================================================================
+
+void UHktIntentEventComponent::NotifyIntentBatch(int32 FrameNumber)
 {
-    if (GetOwnerRole() != ROLE_Authority)
-    {
-        return;
-    }
-    
-    const int32 RemovedCount = EventBuffer.Items.RemoveAll([LastProcessedEventId](const FHktEventItem& Item) {
-        return Item.Event.EventId <= LastProcessedEventId;
-    });
-    
-    if (RemovedCount > 0)
-    {
-        EventBuffer.MarkArrayDirty();
-        UE_LOG(LogTemp, Verbose, TEXT("[HktIntentEventComponent] Removed %d processed events (EventId <= %d)"), 
-            RemovedCount, LastProcessedEventId);
-    }
+	if (PendingIntentEvents.Num() == 0)
+	{
+		return;
+	}
+
+	// 배치 생성 및 이벤트 이동
+	FHktIntentEventBatch Batch(FrameNumber);
+	Batch.Events = MoveTemp(PendingIntentEvents);
+	PendingIntentEvents.Reset();
+
+	// Late-Join용 배치 저장
+	ProcessingIntentEventBatch = Batch;
+
+	// 서버에서 시뮬레이션 실행 및 결과 저장
+	if (SimulationProvider)
+	{
+		SimulationProvider->ProcessSimulation(Batch);
+		UE_LOG(LogTemp, Log, TEXT("[HktIntentEventComponent] Server processed simulation for frame %d."), FrameNumber);
+	}
+}
+
+void UHktIntentEventComponent::Server_NotifyCompletedSimulation(const FHktSimulationResult& SimulationResult)
+{
+	HktSimulationModel = SimulationResult;
+	UE_LOG(LogTemp, Log, TEXT("[HktIntentEventComponent] Server received simulation result for frame %d."), SimulationResult.ProcessedFrameNumber);
+}
+
+// ============================================================================
+// Step 4: Late-Join Synchronization
+// ============================================================================
+
+void UHktIntentEventComponent::OnRep_ProcessingIntentBatch()
+{
+	UE_LOG(LogTemp, Log, TEXT("[HktIntentEventComponent] Late-join client received initial processing batch for frame %d."), ProcessingIntentEventBatch.FrameNumber);
+	// 필요 시, 여기서 멈춘 시뮬레이션을 재개하는 로직 추가
+}
+
+void UHktIntentEventComponent::OnRep_HktSimulationModel()
+{
+	UE_LOG(LogTemp, Log, TEXT("[HktIntentEventComponent] Late-join client received initial simulation model for frame %d."), HktSimulationModel.ProcessedFrameNumber);
+	// 여기서 이 모델을 기반으로 상태를 복원하는 로직 추가
 }

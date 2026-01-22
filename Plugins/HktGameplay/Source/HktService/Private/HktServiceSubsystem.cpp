@@ -9,7 +9,6 @@ void UHktServiceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UHktServiceSubsystem::Deinitialize()
 {
 	SelectionProvider = nullptr;
-	IntentEventProvider = nullptr;
 	AssetProvider = nullptr;
 	JobProvider = nullptr;
 	SimulationProvider = nullptr;
@@ -38,19 +37,6 @@ void UHktServiceSubsystem::UnregisterSelectionProvider(TScriptInterface<IHktSele
 	}
 }
 
-void UHktServiceSubsystem::RegisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider)
-{
-	IntentEventProvider = Provider;
-}
-
-void UHktServiceSubsystem::UnregisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider)
-{
-	if (IntentEventProvider == Provider)
-	{
-		IntentEventProvider = nullptr;
-	}
-}
-
 void UHktServiceSubsystem::RegisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider)
 {
 	AssetProvider = Provider;
@@ -67,11 +53,6 @@ void UHktServiceSubsystem::UnregisterAssetProvider(TScriptInterface<IHktAssetPro
 TScriptInterface<IHktSelectionProvider> UHktServiceSubsystem::GetSelectionProvider() const
 {
 	return SelectionProvider;
-}
-
-TScriptInterface<IHktIntentEventProvider> UHktServiceSubsystem::GetIntentEventProvider() const
-{
-	return IntentEventProvider;
 }
 
 TScriptInterface<IHktAssetProvider> UHktServiceSubsystem::GetAssetProvider() const

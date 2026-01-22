@@ -24,6 +24,7 @@ public class HktSimulation : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"NetCore",  // StashComponent 네트워크 복제 지원
 				"MassEntity",
 				"MassCommon",
 				"MassSpawner",

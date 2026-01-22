@@ -4,88 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Net/Serialization/FastArraySerializer.h"
-#include "HktIntentInterface.h"
+#include "HktService/Public/HktIntentInterface.h"
+#include "HktSimulation/Public/HktSimulationProvider.h"
 #include "HktIntentEventComponent.generated.h"
 
-class UHktIntentBuilderComponent;
-
-struct FHktEventContainer;
-class UHktIntentEventComponent;
-class UHktIntentSubsystem;
-
-UENUM(BlueprintType)
-enum class EIntentChangeType : uint8
-{
-	Added,
-	Updated,
-	Removed
-};
-
 /**
- * [Data Packet]
- * Wraps the Intent Event for FastArraySerializer replication.
- */
-USTRUCT(BlueprintType)
-struct FHktEventItem : public FFastArraySerializerItem
-{
-	GENERATED_BODY()
-
-	FHktEventItem()
-	{}
-
-	FHktEventItem(const FHktIntentEvent& InEvent)
-		: Event(InEvent)
-	{}
-
-	UPROPERTY()
-	FHktIntentEvent Event;
-
-	// FAS Callbacks
-	void PostReplicatedAdd(const FHktEventContainer& InArraySerializer);
-	void PostReplicatedChange(const FHktEventContainer& InArraySerializer);
-	void PreReplicatedRemove(const FHktEventContainer& InArraySerializer);
-};
-
-/**
- * [Data Container]
- * Synchronizes list of events between Client and Server.
- */
-USTRUCT(BlueprintType)
-struct FHktEventContainer : public FFastArraySerializer
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TArray<FHktEventItem> Items;
-
-	/** Channel ID - 함께 동기화가 필요한 묶음 식별자 (GameMode에서 제공) */
-	UPROPERTY(NotReplicated)
-	int32 ChannelId = 0;
-
-	/** Subsystem reference for FAS callbacks */
-	UPROPERTY(NotReplicated)
-	TObjectPtr<UHktIntentSubsystem> OwnerSubsystem;
-
-	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
-	{
-		return FFastArraySerializer::FastArrayDeltaSerialize<FHktEventItem, FHktEventContainer>(Items, DeltaParms, *this);
-	}
-
-	// Helper
-	FHktEventItem& AddOrUpdateItem(const FHktEventItem& Item);
-};
-
-// FAS Traits
-template<>
-struct TStructOpsTypeTraits<FHktEventContainer> : public TStructOpsTypeTraitsBase2<FHktEventContainer>
-{
-	enum { WithNetDeltaSerializer = true };
-};
-
-/**
- * 클라이언트의 행동 의도(Intent)를 서버로 전송하고, 
- * 서버에서 확정된 이벤트를 다시 클라이언트로 복제하여 동기화하는 컴포넌트
+ * 클라이언트의 행동 의도(Intent)를 서버와 동기화하고, Lockstep 시뮬레이션을 수행하는 컴포넌트
+ *
+ * 데이터 흐름 (Lockstep Model):
+ * 1. [Client] `Server_NotifyIntent()` RPC를 호출하여 서버로 의도(Event)를 보냅니다.
+ * 2. [Server] 수신한 의도를 `PendingIntentEvents` 배열에 저장합니다. (복제되지 않음)
+ * 3. [Server] GameMode가 `NotifyIntentBatch()`를 호출하면:
+ *    - `PendingIntentEvents`를 `FHktIntentEventBatch`로 묶습니다.
+ *    - 서버에서 시뮬레이션을 실행하고 `HktSimulationModel`에 결과를 저장합니다.
+ *    - `Client_NotifyIntentBatch()` RPC를 호출하여 클라이언트에게 배치를 전송합니다.
+ * 4. [Client] 배치를 수신하면 동일한 시뮬레이션을 실행합니다. (Lockstep - 서버와 동일한 결과)
+ * 5. [Late-Join] `ProcessingIntentEventBatch`와 `HktSimulationModel`은 COND_InitialOnly로 새 클라이언트에게만 동기화됩니다.
  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class HKTINTENT_API UHktIntentEventComponent : public UActorComponent
@@ -96,31 +30,67 @@ public:
 	UHktIntentEventComponent();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// --- Public Interface ---
+	// --- Public API ---
 
-	/** 클라이언트에서 입력을 받아 의도 제출 */
+	/** 
+	 * [Client] 서버로 Intent Event를 전송합니다.
+	 * 내부적으로 Server RPC를 호출합니다.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Hkt|Intent")
-	void SubmitIntent(UHktIntentBuilderComponent* Builder);
+	void NotifyIntent(const FHktIntentEvent& IntentEvent);
 
-	/** 복제된 이벤트 버퍼 직접 접근 (읽기 전용) */
+	// --- Server-side hooks (called by GameMode) ---
+
+	/** 
+	 * [Server] GameMode에서 호출. 수집된 Intent들로 배치를 만들어 클라이언트에 전송을 시작합니다.
+	 * @param FrameNumber 현재 처리할 프레임 번호
+	 */
+	void NotifyIntentBatch(int32 FrameNumber);
+
+	/** 서버에게만 시뮬레이션 결과를 알립니다다. 클라이언트에서는 호출하지 않습니다. */
 	UFUNCTION(BlueprintCallable, Category = "Hkt|Intent")
-	const TArray<FHktEventItem>& GetEventBuffer() const { return EventBuffer.Items; }
-
-	/** 처리된 이벤트 제거 (Server only, Commit에서 호출) */
-	void RemoveProcessedEvents(int32 LastProcessedEventId);
+	void Server_NotifyCompletedSimulation(const FHktSimulationResult& SimulationResult);
 
 protected:
-	// --- Networking ---
+	// --- RPCs ---
+
+	/** [Client->Server RPC] 서버로 Intent Event를 전송합니다. */
 	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_ReceiveEvent(FHktIntentEvent PendingEvent);
+	void Server_NotifyIntent(FHktIntentEvent IntentEvent);
+
+	/** [Server->Client] Intent Event 배치를 클라이언트로 전송합니다. 클라이언트는 동일한 시뮬레이션을 실행합니다. */
+	UFUNCTION(Client, Reliable)
+	void Client_NotifyIntentBatch(const FHktIntentEventBatch& IntentBatch);
+
+	/** Late-join 클라이언트를 위한 RepNotify: 처리 중인 배치 동기화 */
+	UFUNCTION()
+	void OnRep_ProcessingIntentBatch();
+	
+	/** Late-join 클라이언트를 위한 RepNotify: 마지막 시뮬레이션 결과 동기화 */
+	UFUNCTION()
+	void OnRep_HktSimulationModel();
 
 private:
-	/** 복제된 이벤트 데이터 버퍼 (Fast Array Serializer) */
-	UPROPERTY(Replicated)
-	FHktEventContainer EventBuffer;
+	/** [Server-Only] 다음 배치에 포함하기 위해 수집 중인 의도들 (복제되지 않음) */
+	TArray<FHktIntentEvent> PendingIntentEvents;
+	
+	/**
+	 * [Replicated for Late-Join] 현재 클라이언트에서 처리 중인 배치.
+	 * COND_InitialOnly로 최초 접속 클라이언트에게만 동기화됩니다.
+	 */
+	UPROPERTY(ReplicatedUsing = OnRep_ProcessingIntentBatch)
+	FHktIntentEventBatch ProcessingIntentEventBatch;
 
-	/** 로컬에서 생성된 의도 ID 시퀀스 (Unique ID 발급용) */
-	int32 LocalIntentSequence;
+	/**
+	 * [Replicated for Late-Join] 가장 마지막으로 완료된 시뮬레이션 결과 모델.
+	 * COND_InitialOnly로 최초 접속 클라이언트에게만 동기화됩니다.
+	 */
+	UPROPERTY(ReplicatedUsing = OnRep_HktSimulationModel)
+	FHktSimulationResult HktSimulationModel;
+
+	/** 시뮬레이션 처리를 담당하는 Provider (UHktServiceSubsystem에서 획득) */
+	TScriptInterface<IHktSimulationProvider> SimulationProvider;
 };

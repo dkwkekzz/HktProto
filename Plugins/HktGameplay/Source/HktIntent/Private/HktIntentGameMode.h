@@ -5,13 +5,16 @@
 #include "HktIntentGameMode.generated.h"
 
 class AHktIntentPlayerState;
+class UHktIntentEventComponent;
 
 /**
  * GameMode for HktIntent system.
  * Authoritative source of the deterministic frame number and channel.
  * 
- * Late Join 처리:
- * - PostLogin에서 플레이어 등록 및 스냅샷 전송
+ * 역할:
+ * 1. 프레임 번호 관리 (결정론적)
+ * 2. 프레임 시작 시 모든 IntentEventComponent에 알림
+ * 3. Late Join 처리 (PostLogin에서 플레이어 등록 및 스냅샷 전송)
  */
 UCLASS()
 class HKTINTENT_API AHktIntentGameMode : public AGameModeBase
@@ -28,19 +31,23 @@ public:
 	/** Get the absolute server frame */
 	int32 GetServerFrame() const { return AbsoluteFrame; }
 
-	/** Get the current channel ID (동기화 그룹 식별자) */
-	int32 GetChannelId() const { return ChannelId; }
+	/** IntentEventComponent 등록 (PlayerState에서 호출) */
+	void RegisterIntentEventComponent(UHktIntentEventComponent* Component);
+	
+	/** IntentEventComponent 등록 해제 */
+	void UnregisterIntentEventComponent(UHktIntentEventComponent* Component);
 
 private:
-	/** 플레이어에게 현재 Simulation 상태 스냅샷 전송 */
-	void SendSnapshotToPlayer(AHktIntentPlayerState* PlayerState);
+	/** 프레임 시작 시 모든 IntentEventComponent에 알림 */
+	void NotifyFrameStartToAllComponents(int32 FrameNumber);
 
 private:
 	int32 AbsoluteFrame;
 	float FrameAccumulator;
 
-	/** Channel ID - 함께 동기화가 필요한 묶음 식별자 */
-	int32 ChannelId;
+	/** 등록된 IntentEventComponent 목록 */
+	UPROPERTY()
+	TArray<TObjectPtr<UHktIntentEventComponent>> RegisteredEventComponents;
 
 	static constexpr float FixedFrameTime = 1.0f / 30.0f;
 };

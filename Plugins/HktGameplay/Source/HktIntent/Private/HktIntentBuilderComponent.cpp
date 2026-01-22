@@ -1,10 +1,13 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktIntentBuilderComponent.h"
+#include "HktIntentEventComponent.h"
+#include "HktIntentPlayerState.h"
 #include "HktServiceSubsystem.h"
 #include "IHktSelectionProvider.h"
 #include "HktActionDataAsset.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 #include "Engine/World.h"
 
 //=============================================================================
@@ -87,6 +90,56 @@ void UHktIntentBuilderComponent::CreateTargetAction()
     {
         CacheTargetFromHit(Hit);
     }
+}
+
+//-----------------------------------------------------------------------------
+// Intent Submission
+//-----------------------------------------------------------------------------
+
+void UHktIntentBuilderComponent::SubmitIntent()
+{
+    // 1. Validate readiness
+    if (!IsReadyToSubmit())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HktIntentBuilder] Cannot submit: Intent is not ready"));
+        return;
+    }
+
+    // 2. Find IntentEventComponent through PlayerState
+    UHktIntentEventComponent* EventComponent = nullptr;
+    
+    if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+    {
+        if (AHktIntentPlayerState* PS = PC->GetPlayerState<AHktIntentPlayerState>())
+        {
+            EventComponent = PS->GetIntentEventComponent();
+        }
+    }
+
+    if (!EventComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[HktIntentBuilder] Failed to find IntentEventComponent"));
+        return;
+    }
+
+    // 3. Build Intent Event
+    static int32 StaticIntentSequence = 0;
+    
+    FHktIntentEvent NewEvent;
+    NewEvent.EventId = ++StaticIntentSequence;
+    NewEvent.Subject = SubjectHandle;
+    NewEvent.EventTag = EventTag;
+    NewEvent.Target = TargetHandle;
+    NewEvent.Location = TargetLocation;
+
+    // 4. Submit to EventComponent
+    EventComponent->NotifyIntent(NewEvent);
+
+    // 5. Reset command for next action (keep subject)
+    ResetCommand();
+    
+    UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Intent submitted: Tag=%s, EventId=%d"), 
+        *EventTag.ToString(), NewEvent.EventId);
 }
 
 //-----------------------------------------------------------------------------

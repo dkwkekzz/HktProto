@@ -1,7 +1,6 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktIntentPlayerController.h"
-#include "HktIntentPlayerState.h"
 #include "HktIntentBuilderComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
@@ -74,11 +73,7 @@ void AHktIntentPlayerController::OnSlotAction(const FInputActionValue& Value, in
     // Target이 필요 없으면 바로 제출
     if (!IntentBuilder->IsTargetRequired() && IntentBuilder->IsReadyToSubmit())
     {
-        if (AHktIntentPlayerState* HktPS = GetPlayerState<AHktIntentPlayerState>())
-        {
-            HktPS->SubmitIntent(IntentBuilder);
-            IntentBuilder->ResetCommand();
-        }
+        IntentBuilder->SubmitIntent();
     }
 }
 
@@ -89,15 +84,10 @@ void AHktIntentPlayerController::OnTargetAction(const FInputActionValue& Value)
 
     IntentBuilder->CreateTargetAction();
     
+    // Target 설정 완료 시 바로 제출
     if (IntentBuilder->IsReadyToSubmit())
     {
-        if (AHktIntentPlayerState* HktPS = GetPlayerState<AHktIntentPlayerState>())
-        {
-            HktPS->SubmitIntent(IntentBuilder);
-            
-            // 제출 후 Command만 초기화 (Subject는 유지)
-            IntentBuilder->ResetCommand();
-        }
+        IntentBuilder->SubmitIntent();
     }
 }
 

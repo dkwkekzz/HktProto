@@ -1,7 +1,6 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "IHktIntentModule.h"
-#include "HktIntentSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "FHktIntentModule"
 

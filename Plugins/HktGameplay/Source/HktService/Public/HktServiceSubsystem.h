@@ -3,15 +3,17 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "HktServiceInterface.h"
 #include "HktAssetInterface.h"
-#include "HktIntentInterface.h"
 #include "HktSimulationInterface.h"
-#include "IHktJobProvider.h"
 #include "IHktSelectionProvider.h"
 #include "HktServiceSubsystem.generated.h"
 
 /**
  * Central hub for accessing services across modules.
- * Manages providers for Selection, IntentEvents, and Codex.
+ * Manages providers for Selection, Simulation, Asset, and Job.
+ * 
+ * Note: IntentEventProvider has been removed.
+ * IntentEvents are now handled directly by UHktIntentEventComponent
+ * and passed to UHktSimulationStashComponent for processing.
  */
 UCLASS()
 class HKTSERVICE_API UHktServiceSubsystem : public UWorldSubsystem
@@ -29,31 +31,20 @@ public:
 	void RegisterSelectionProvider(TScriptInterface<IHktSelectionProvider> Provider);
 	void UnregisterSelectionProvider(TScriptInterface<IHktSelectionProvider> Provider);
 
-	void RegisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider);
-	void UnregisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider);
-
 	void RegisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider);
 	void UnregisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider);
-
-	void RegisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
-	void UnregisterJobProvider(TScriptInterface<IHktJobProvider> Provider);
 
 	void RegisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider);
 	void UnregisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider);
 
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
-	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider() const;
 	TScriptInterface<IHktAssetProvider> GetAssetProvider() const;
-	TScriptInterface<IHktJobProvider> GetJobProvider() const;
 	TScriptInterface<IHktSimulationProvider> GetSimulationProvider() const;
 
 private:
 	UPROPERTY()
 	TScriptInterface<IHktSelectionProvider> SelectionProvider;
-
-	UPROPERTY()
-	TScriptInterface<IHktIntentEventProvider> IntentEventProvider;
 
 	UPROPERTY()
 	TScriptInterface<IHktAssetProvider> AssetProvider;

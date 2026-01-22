@@ -10,34 +10,26 @@
 // IHktSimulationProvider
 // ---------------------------------------------------
 
-UINTERFACE(MinimalAPI, BlueprintType)
-class UHktSimulator : public UInterface
+UINTERFACE(MinimalAPI, Blueprintable)
+class UHktSimulationProvider : public UInterface
 {
 	GENERATED_BODY()
 };
 
 /**
- * Interface for Simulation services.
- * Implemented by HktSimulation module.
- * 
- * 역할:
- * - 플레이어 등록/해제
- * - 속성 스냅샷 제공 (Late Join용)
+ * 시뮬레이션 처리를 위임하기 위한 인터페이스
+ * 이 인터페이스를 구현하는 객체(예: PlayerState)는 Intent Batch를 처리하고 결과를 반환해야 합니다.
  */
-class HKTSERVICE_API IHktSimulator
+class HKTSIMULATION_API IHktSimulationProvider
 {
 	GENERATED_BODY()
 
 public:
-	/** 새 플레이어 등록 */
-	virtual FHktPlayerHandle RegisterPlayer() = 0;
-	
-	/** 플레이어 등록 해제 */
-	virtual void UnregisterPlayer(const FHktPlayerHandle& Handle) = 0;
-	
-	/** 플레이어 속성 스냅샷 조회 (Late Join용) */
-	virtual bool GetPlayerSnapshot(const FHktPlayerHandle& Handle, TArray<float>& OutValues) const = 0;
-	
-	/** 플레이어 속성 스냅샷으로 초기화 (클라이언트에서 호출) */
-	virtual void InitializePlayerFromSnapshot(const FHktPlayerHandle& Handle, const TArray<float>& Values) = 0;
+	/**
+	 * Intent Event Batch를 처리하여 시뮬레이션 결과를 반환합니다.
+	 * @param IntentBatch 처리할 이벤트 배치
+	 * @return 시뮬레이션 결과
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Hkt|Simulation")
+	FHktSimulationResult ProcessSimulation(const FHktIntentEventBatch& IntentBatch);
 };

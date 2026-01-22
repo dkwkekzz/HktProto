@@ -35,7 +35,8 @@ public class HktIntent : ModuleRules
 			new string[]
 			{
 				"HktService",
-				"HktAsset"
+				"HktAsset",
+				"HktSimulation"  // StashComponent 접근을 위한 의존성
 			}
 		);
 		
