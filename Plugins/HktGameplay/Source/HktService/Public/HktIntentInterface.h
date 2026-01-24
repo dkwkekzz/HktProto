@@ -90,40 +90,19 @@ struct HKTSERVICE_API FHktIntentEventBatch
 	bool IsEmpty() const { return Events.Num() == 0; }
 };
 
-// --- Lockstep 시뮬레이션 결과 구조 ---
-
-/**
- * 플레이어별 속성 변경 내역
- * 직렬 처리이므로 TMap 대신 간단한 배열 사용
- */
-USTRUCT(BlueprintType)
-struct FHktAttributeChanges
+UINTERFACE(MinimalAPI, Blueprintable)
+class UHktIntentProvider : public UInterface
 {
-    GENERATED_BODY()
-    
-    // 변경된 속성과 새 값
-    UPROPERTY()
-    TArray<TPair<EHktAttributeType, float>> ChangedAttributes;
+	GENERATED_BODY()
 };
 
-/**
- * 시뮬레이션 처리 결과
- * IHktSimulationProvider에서 처리 후 IntentEventComponent에 저장
- */
-USTRUCT(BlueprintType)
-struct HKTSERVICE_API FHktSimulationResult
+struct FHktSimulationModel;
+
+class HKTSERVICE_API IHktIntentProvider
 {
-    GENERATED_BODY()
-    
-    FHktSimulationResult()
-        : ProcessedFrameNumber(0)
-    {}
-    
-    // 처리된 프레임 번호
-    UPROPERTY(BlueprintReadOnly)
-    int32 ProcessedFrameNumber;
-    
-    // 플레이어별 속성 변경 내역
-    UPROPERTY()
-    TMap<int32, FHktAttributeChanges> PlayerAttributeChanges; // Key = PlayerHandle.Value
+	GENERATED_BODY()
+public:
+	virtual TArray<FHktIntentEventBatch> GetPendingBatches() const = 0;
+	virtual void NotifyCompletedSimulation(const FHktSimulationModel& SimulationResult) = 0;
+	virtual bool HasAuthority() const = 0;
 };

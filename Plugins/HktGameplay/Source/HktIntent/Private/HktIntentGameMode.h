@@ -28,6 +28,9 @@ public:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 
+	// Helper to get the game state from a world context
+	static AHktIntentGameMode* Get(const UObject* WorldContextObject);
+
 	/** Get the absolute server frame */
 	int32 GetServerFrame() const { return AbsoluteFrame; }
 

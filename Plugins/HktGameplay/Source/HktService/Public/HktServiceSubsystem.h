@@ -34,13 +34,14 @@ public:
 	void RegisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider);
 	void UnregisterAssetProvider(TScriptInterface<IHktAssetProvider> Provider);
 
-	void RegisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider);
-	void UnregisterSimulationProvider(TScriptInterface<IHktSimulationProvider> Provider);
+	void RegisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider);
+	void UnregisterIntentEventProvider(TScriptInterface<IHktIntentEventProvider> Provider);
 
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
 	TScriptInterface<IHktAssetProvider> GetAssetProvider() const;
-	TScriptInterface<IHktSimulationProvider> GetSimulationProvider() const;
+	const TArray<TScriptInterface<IHktIntentEventProvider>>& GetIntentEventProviders() const;
+	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider(int32 Index) const;
 
 private:
 	UPROPERTY()
@@ -48,10 +49,7 @@ private:
 
 	UPROPERTY()
 	TScriptInterface<IHktAssetProvider> AssetProvider;
-
+	
 	UPROPERTY()
-	TScriptInterface<IHktJobProvider> JobProvider;
-
-	UPROPERTY()
-	TScriptInterface<IHktSimulationProvider> SimulationProvider;
+	TArray<TScriptInterface<IHktIntentEventProvider>> IntentEventProviders;
 };
