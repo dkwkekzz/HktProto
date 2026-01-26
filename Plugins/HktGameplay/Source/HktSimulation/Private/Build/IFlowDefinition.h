@@ -8,7 +8,6 @@
 // 전방 선언
 class FHktVMBuilder;
 struct FHktIntentEvent;
-struct FHktAttributeStore;
 
 /**
  * [IFlowDefinition]
@@ -37,13 +36,11 @@ public:
      * 
      * @param Builder - VM 바이트코드 빌더 (Fluent API)
      * @param Event - 처리할 인텐트 이벤트
-     * @param Attributes - 엔티티 속성 저장소 (선택적 참조)
      * @return 성공 여부
      */
     virtual bool BuildBytecode(
         FHktVMBuilder& Builder, 
-        const FHktIntentEvent& Event, 
-        FHktAttributeStore* Attributes) = 0;
+        const FHktIntentEvent& Event) = 0;
 
     /**
      * 이 Flow가 처리하는 GameplayTag 반환

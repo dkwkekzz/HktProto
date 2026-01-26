@@ -91,18 +91,15 @@ struct HKTSERVICE_API FHktIntentEventBatch
 };
 
 UINTERFACE(MinimalAPI, Blueprintable)
-class UHktIntentProvider : public UInterface
+class UHktIntentEventProvider : public UInterface
 {
 	GENERATED_BODY()
 };
 
-struct FHktSimulationModel;
-
-class HKTSERVICE_API IHktIntentProvider
+class HKTSERVICE_API IHktIntentEventProvider
 {
 	GENERATED_BODY()
+
 public:
-	virtual TArray<FHktIntentEventBatch> GetPendingBatches() const = 0;
-	virtual void NotifyCompletedSimulation(const FHktSimulationModel& SimulationResult) = 0;
-	virtual bool HasAuthority() const = 0;
+	virtual void PullIntentEvents(int32 CompletedFrameNumber, TArray<FHktIntentEvent>& OutIntentEvents) = 0;
 };

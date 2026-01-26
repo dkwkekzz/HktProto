@@ -3,7 +3,6 @@
 #include "Build/Definitions/FireballFlowDefinition.h"
 #include "Build/FlowDefinitionRegistry.h"
 #include "Core/HktVMBuilder.h"
-#include "Core/HktAttributeStore.h"
 #include "HktIntentInterface.h"
 #include "NativeGameplayTags.h"
 
@@ -22,8 +21,7 @@ FGameplayTag FFireballFlowDefinition::GetEventTag() const
 
 bool FFireballFlowDefinition::BuildBytecode(
     FHktVMBuilder& Builder, 
-    const FHktIntentEvent& Event, 
-    FHktAttributeStore* Attributes)
+    const FHktIntentEvent& Event)
 {
     // ========================================================================
     // 파이어볼 스킬 Flow

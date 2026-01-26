@@ -4,7 +4,9 @@ HktVMTypes.h	기본 타입, 64비트 레지스터 union, OpCode enum, 8바이트
 HktVMProgram.h	프로그램 구조체, 태그 테이블, 상수 풀, 프로그램 캐시
 HktVMBatch.h	SoA 레이아웃 VM 배치 (64개 동시 실행), 리스트 저장소
 HktVMDispatch.h/cpp	함수 포인터 테이블, 30+ 명령어 구현
-HktAttributeStore.h	영구 속성 SoA 저장소 (4096 엔티티)
+HktStateTypes.h	상태 타입 정의 (Entity, Player, Process)
+HktStateStore.h	통합 상태 저장소 (엔티티/플레이어/프로세스)
+HktStateCache.h	VM별 로컬 캐시 (실행 중 사용)
 HktVMBuilder.h	Fluent API 바이트코드 빌더
 HktVM.h	VM 실행 엔진
 
@@ -22,7 +24,7 @@ SoA 레이아웃: PC, State, WaitTimer 등 필드별 연속 배열
 태그 (어떻게): 프로그램 내 태그 테이블로 8비트 인덱싱
 분기 (언제): Jump, JumpIfZero, ForEach 등
 레지스터 (휘발성): 16개 64비트 레지스터
-속성 (영구적): FHktAttributeStore 외부 저장소
+속성 (영구적): FHktStateStore 통합 저장소
 
 핵심 설계
 1. FHktAttribute (상태 단위)

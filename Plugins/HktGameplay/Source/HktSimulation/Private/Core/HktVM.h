@@ -5,7 +5,7 @@
 #include "HktVMProgram.h"
 #include "HktVMBatch.h"
 #include "HktVMDispatch.h"
-#include "HktAttributeStore.h"
+#include "HktStateStore.h"
 
 // ============================================================================
 // HktVM - VM 실행 엔진
@@ -149,10 +149,11 @@ private:
                 break;
                 
             case EHktYieldCondition::Arrival:
-                if (World.Attributes)
+                if (World.StateStore)
                 {
                     int32 OwnerID = Batch.OwnerEntityIDs[i];
-                    if (World.Attributes->HasArrivedAtTarget(OwnerID))
+                    FHktEntityState* State = World.StateStore->Entities.Get(OwnerID);
+                    if (State && State->HasArrivedAtTarget())
                     {
                         Batch.States[i] = EHktVMState::Running;
                     }

@@ -8,7 +8,6 @@
 
 // 전방 선언
 struct FHktIntentEvent;
-struct FHktAttributeStore;
 
 /**
  * [FHktFlowBuildProcessor]
@@ -33,21 +32,18 @@ public:
      * 
      * @param FlowTag - Flow를 식별하는 GameplayTag
      * @param Event - 빌드 컨텍스트를 제공하는 이벤트 (선택적)
-     * @param Attributes - 속성 저장소 참조 (선택적)
      * @return 빌드된 프로그램, 실패 시 nullptr
      */
     const FHktProgram* GetOrBuildProgram(
         const FGameplayTag& FlowTag,
-        const FHktIntentEvent* Event = nullptr,
-        FHktAttributeStore* Attributes = nullptr);
+        const FHktIntentEvent* Event = nullptr);
     
     /**
      * 프로그램 강제 리빌드 (캐시 무시)
      */
     const FHktProgram* RebuildProgram(
         const FGameplayTag& FlowTag,
-        const FHktIntentEvent* Event = nullptr,
-        FHktAttributeStore* Attributes = nullptr);
+        const FHktIntentEvent* Event = nullptr);
     
     /**
      * 캐시에서 프로그램 가져오기 (빌드 없음)
@@ -80,8 +76,7 @@ private:
      */
     TSharedPtr<FHktProgram> BuildProgramFromDefinition(
         const FGameplayTag& FlowTag,
-        const FHktIntentEvent* Event,
-        FHktAttributeStore* Attributes);
+        const FHktIntentEvent* Event);
     
 private:
     // 프로그램 캐시

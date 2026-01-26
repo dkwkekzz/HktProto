@@ -208,11 +208,33 @@ struct FHktEntityState
     bool IsValid() const { return EntityID != INDEX_NONE && (Flags & FLAG_ACTIVE); }
     bool IsAlive() const { return (Flags & FLAG_ALIVE) != 0; }
     
+    // 플래그 조작
+    FORCEINLINE bool HasFlag(uint32 Flag) const { return (Flags & Flag) != 0; }
+    FORCEINLINE void SetFlag(uint32 Flag) { Flags |= Flag; }
+    FORCEINLINE void ClearFlag(uint32 Flag) { Flags &= ~Flag; }
+    
     FVector GetPosition() const { return FVector(HktFixedToFloat(PosX), HktFixedToFloat(PosY), HktFixedToFloat(PosZ)); }
     void SetPosition(const FVector& V) { PosX = HktFloatToFixed(V.X); PosY = HktFloatToFixed(V.Y); PosZ = HktFloatToFixed(V.Z); }
     
     FVector GetVelocity() const { return FVector(HktFixedToFloat(VelX), HktFixedToFloat(VelY), HktFixedToFloat(VelZ)); }
     void SetVelocity(const FVector& V) { VelX = HktFloatToFixed(V.X); VelY = HktFloatToFixed(V.Y); VelZ = HktFloatToFixed(V.Z); }
+    
+    FVector GetTarget() const { return FVector(HktFixedToFloat(TargetX), HktFixedToFloat(TargetY), HktFixedToFloat(TargetZ)); }
+    void SetTarget(const FVector& V) { TargetX = HktFloatToFixed(V.X); TargetY = HktFloatToFixed(V.Y); TargetZ = HktFloatToFixed(V.Z); }
+    
+    // 도착 여부 체크
+    bool HasArrivedAtTarget(float Tolerance = 10.0f) const
+    {
+        if (!HasFlag(FLAG_MOVING)) return true;
+        
+        int64 DX = static_cast<int64>(TargetX - PosX);
+        int64 DY = static_cast<int64>(TargetY - PosY);
+        int64 DZ = static_cast<int64>(TargetZ - PosZ);
+        int64 DistSq = (DX*DX + DY*DY + DZ*DZ) / (HKT_FIXED_SCALE * HKT_FIXED_SCALE);
+        int32 ToleranceSqFixed = HktFloatToFixed(Tolerance * Tolerance);
+        
+        return DistSq <= ToleranceSqFixed;
+    }
     
     void Reset()
     {

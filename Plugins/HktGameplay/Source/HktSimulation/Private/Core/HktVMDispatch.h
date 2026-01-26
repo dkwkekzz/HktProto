@@ -18,7 +18,6 @@
 
 // 전방 선언
 struct FHktVMWorld;
-struct FHktAttributeStore;  // Legacy 지원
 
 // ============================================================================
 // 명령어 핸들러 타입
@@ -43,12 +42,9 @@ using FHktOpHandler = int32(*)(FHktVMBatch& Batch, int32 VMIdx, const FHktInstru
 
 struct FHktVMWorld
 {
-    // === 새로운 상태 시스템 ===
+    // === 상태 시스템 ===
     FHktStateStore* StateStore = nullptr;       // 중앙 상태 저장소
     FHktStateCache* StateCache = nullptr;       // VM별 로컬 캐시 (실행 중 사용)
-    
-    // === Legacy 지원 (점진적 마이그레이션) ===
-    FHktAttributeStore* Attributes = nullptr;   // 기존 속성 저장소
     FHktListStorage* Lists = nullptr;
     
     UWorld* UnrealWorld = nullptr;
@@ -164,12 +160,12 @@ namespace HktOps
     // Offset: Tolerance 상수 인덱스
     inline int32 Op_WaitArrival(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         int32 OwnerID = Batch.OwnerEntityIDs[VMIdx];
         int32 OwnerGen = Batch.OwnerGenerations[VMIdx];
         
-        if (!World.Attributes->IsValidEntity(OwnerID, OwnerGen))
+        if (!World.StateStore->Entities.IsValid(OwnerID, OwnerGen))
         {
             Batch.States[VMIdx] = EHktVMState::Finished;
             return -1;
@@ -182,9 +178,10 @@ namespace HktOps
             Tolerance = Prog->GetConst(Inst.Offset).FloatVal;
         }
         
-        if (World.Attributes->HasArrivedAtTarget(OwnerID, Tolerance))
+        FHktEntityState* State = World.StateStore->Entities.Get(OwnerID);
+        if (State && State->HasArrivedAtTarget(Tolerance))
         {
-            World.Attributes->ClearFlag(OwnerID, FHktAttributeStore::FLAG_MOVING);
+            State->ClearFlag(FHktEntityState::FLAG_MOVING);
             return -1;
         }
         
@@ -198,14 +195,16 @@ namespace HktOps
     // D: 태그 테이블 인덱스 (엔티티 타입)
     inline int32 Op_Spawn(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         const FHktProgram* Prog = Batch.Programs[VMIdx];
         const FGameplayTag& EntityTag = Prog->GetTag(Inst.D);
         
-        int32 NewID, NewGen;
-        if (World.Attributes->CreateEntity(EntityTag, NewID, NewGen))
+        int32 NewID = World.StateStore->Entities.Allocate(EntityTag);
+        if (NewID != INDEX_NONE)
         {
+            FHktEntityState* State = World.StateStore->Entities.Get(NewID);
+            int32 NewGen = State ? State->Generation : 0;
             Batch.GetRegister(VMIdx, Inst.A).SetEntity(NewID, NewGen);
             
             if (World.bDebugLog)
@@ -221,10 +220,10 @@ namespace HktOps
     // A: 대상 레지스터
     inline int32 Op_Destroy(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         FHktRegister& Reg = Batch.GetRegister(VMIdx, Inst.A);
-        World.Attributes->DestroyEntity(Reg.GetEntityID(), Reg.GetGeneration());
+        World.StateStore->Entities.Free(Reg.GetEntityID());
         
         if (World.bDebugLog)
         {
@@ -238,27 +237,30 @@ namespace HktOps
     // A: 속도 상수 인덱스
     inline int32 Op_MoveForward(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         int32 OwnerID = Batch.OwnerEntityIDs[VMIdx];
         int32 OwnerGen = Batch.OwnerGenerations[VMIdx];
         
-        if (!World.Attributes->IsValidEntity(OwnerID, OwnerGen))
+        if (!World.StateStore->Entities.IsValid(OwnerID, OwnerGen))
         {
             return -1;
         }
+        
+        FHktEntityState* State = World.StateStore->Entities.Get(OwnerID);
+        if (!State) return -1;
         
         const FHktProgram* Prog = Batch.Programs[VMIdx];
         float Speed = Prog->GetConst(Inst.Offset).FloatVal;
         
         // 현재 방향으로 속도 설정 (Yaw 기준)
-        float Yaw = World.Attributes->RotationYaw[OwnerID];
+        float Yaw = HktFixedToFloat(State->RotationYaw);
         float Rad = FMath::DegreesToRadians(Yaw);
         
-        World.Attributes->VelocityX[OwnerID] = FMath::Cos(Rad) * Speed;
-        World.Attributes->VelocityY[OwnerID] = FMath::Sin(Rad) * Speed;
-        World.Attributes->VelocityZ[OwnerID] = 0.0f;
-        World.Attributes->SetFlag(OwnerID, FHktAttributeStore::FLAG_MOVING);
+        State->VelX = HktFloatToFixed(FMath::Cos(Rad) * Speed);
+        State->VelY = HktFloatToFixed(FMath::Sin(Rad) * Speed);
+        State->VelZ = 0;
+        State->SetFlag(FHktEntityState::FLAG_MOVING);
         
         if (World.bDebugLog)
         {
@@ -272,37 +274,40 @@ namespace HktOps
     // Offset: 위치 상수 인덱스 (Vector)
     inline int32 Op_MoveTo(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         int32 OwnerID = Batch.OwnerEntityIDs[VMIdx];
         int32 OwnerGen = Batch.OwnerGenerations[VMIdx];
         
-        if (!World.Attributes->IsValidEntity(OwnerID, OwnerGen))
+        if (!World.StateStore->Entities.IsValid(OwnerID, OwnerGen))
         {
             return -1;
         }
         
+        FHktEntityState* State = World.StateStore->Entities.Get(OwnerID);
+        if (!State) return -1;
+        
         const FHktProgram* Prog = Batch.Programs[VMIdx];
         const FHktConstant& TargetConst = Prog->GetConst(Inst.Offset);
         
-        World.Attributes->TargetX[OwnerID] = TargetConst.VecVal[0];
-        World.Attributes->TargetY[OwnerID] = TargetConst.VecVal[1];
-        World.Attributes->TargetZ[OwnerID] = TargetConst.VecVal[2];
+        State->TargetX = HktFloatToFixed(TargetConst.VecVal[0]);
+        State->TargetY = HktFloatToFixed(TargetConst.VecVal[1]);
+        State->TargetZ = HktFloatToFixed(TargetConst.VecVal[2]);
         
         // 목표 방향으로 속도 계산
-        float DX = TargetConst.VecVal[0] - World.Attributes->PositionX[OwnerID];
-        float DY = TargetConst.VecVal[1] - World.Attributes->PositionY[OwnerID];
-        float DZ = TargetConst.VecVal[2] - World.Attributes->PositionZ[OwnerID];
+        float DX = TargetConst.VecVal[0] - HktFixedToFloat(State->PosX);
+        float DY = TargetConst.VecVal[1] - HktFixedToFloat(State->PosY);
+        float DZ = TargetConst.VecVal[2] - HktFixedToFloat(State->PosZ);
         float Dist = FMath::Sqrt(DX*DX + DY*DY + DZ*DZ);
         
         if (Dist > KINDA_SMALL_NUMBER)
         {
-            float Speed = World.Attributes->Speed[OwnerID];
+            float Speed = State->Attributes.GetFloat(HktAttrKeys::Speed, 300.0f);
             float InvDist = 1.0f / Dist;
-            World.Attributes->VelocityX[OwnerID] = DX * InvDist * Speed;
-            World.Attributes->VelocityY[OwnerID] = DY * InvDist * Speed;
-            World.Attributes->VelocityZ[OwnerID] = DZ * InvDist * Speed;
-            World.Attributes->SetFlag(OwnerID, FHktAttributeStore::FLAG_MOVING);
+            State->VelX = HktFloatToFixed(DX * InvDist * Speed);
+            State->VelY = HktFloatToFixed(DY * InvDist * Speed);
+            State->VelZ = HktFloatToFixed(DZ * InvDist * Speed);
+            State->SetFlag(FHktEntityState::FLAG_MOVING);
         }
         
         return -1;
@@ -311,13 +316,16 @@ namespace HktOps
     // === Stop ===
     inline int32 Op_Stop(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         int32 OwnerID = Batch.OwnerEntityIDs[VMIdx];
-        World.Attributes->VelocityX[OwnerID] = 0.0f;
-        World.Attributes->VelocityY[OwnerID] = 0.0f;
-        World.Attributes->VelocityZ[OwnerID] = 0.0f;
-        World.Attributes->ClearFlag(OwnerID, FHktAttributeStore::FLAG_MOVING);
+        FHktEntityState* State = World.StateStore->Entities.Get(OwnerID);
+        if (!State) return -1;
+        
+        State->VelX = 0;
+        State->VelY = 0;
+        State->VelZ = 0;
+        State->ClearFlag(FHktEntityState::FLAG_MOVING);
         
         return -1;
     }
@@ -359,27 +367,32 @@ namespace HktOps
     // Offset: 데미지 상수 인덱스
     inline int32 Op_Damage(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         FHktRegister& TargetReg = Batch.GetRegister(VMIdx, Inst.A);
         int32 TargetID = TargetReg.GetEntityID();
         int32 TargetGen = TargetReg.GetGeneration();
         
-        if (!World.Attributes->IsValidEntity(TargetID, TargetGen))
+        if (!World.StateStore->Entities.IsValid(TargetID, TargetGen))
         {
             return -1;
         }
         
+        FHktEntityState* State = World.StateStore->Entities.Get(TargetID);
+        if (!State) return -1;
+        
         const FHktProgram* Prog = Batch.Programs[VMIdx];
         float Damage = Prog->GetConst(Inst.Offset).FloatVal;
         
-        World.Attributes->Health[TargetID] -= Damage;
+        float Health = State->Attributes.GetFloat(HktAttrKeys::Health, 0.0f);
+        Health -= Damage;
         
-        if (World.Attributes->Health[TargetID] <= 0.0f)
+        if (Health <= 0.0f)
         {
-            World.Attributes->Health[TargetID] = 0.0f;
-            World.Attributes->ClearFlag(TargetID, FHktAttributeStore::FLAG_ALIVE);
+            Health = 0.0f;
+            State->ClearFlag(FHktEntityState::FLAG_ALIVE);
         }
+        State->Attributes.SetFloat(HktAttrKeys::Health, Health);
         
         if (World.bDebugLog)
         {
@@ -395,19 +408,22 @@ namespace HktOps
     // Offset: 지속시간 상수 인덱스 (현재 미구현, 플래그만 설정)
     inline int32 Op_ApplyStatus(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         FHktRegister& TargetReg = Batch.GetRegister(VMIdx, Inst.A);
         int32 TargetID = TargetReg.GetEntityID();
         int32 TargetGen = TargetReg.GetGeneration();
         
-        if (!World.Attributes->IsValidEntity(TargetID, TargetGen))
+        if (!World.StateStore->Entities.IsValid(TargetID, TargetGen))
         {
             return -1;
         }
         
+        FHktEntityState* State = World.StateStore->Entities.Get(TargetID);
+        if (!State) return -1;
+        
         uint32 StatusFlag = static_cast<uint32>(1 << Inst.B);
-        World.Attributes->SetFlag(TargetID, StatusFlag);
+        State->SetFlag(StatusFlag);
         
         if (World.bDebugLog)
         {
@@ -423,7 +439,7 @@ namespace HktOps
     // Offset: 반경 상수 인덱스
     inline int32 Op_QueryRadius(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes || !World.Lists) return -1;
+        if (!World.StateStore || !World.Lists) return -1;
         
         // 중심 위치 결정
         FVector Origin;
@@ -431,13 +447,21 @@ namespace HktOps
         {
             // Owner 위치
             int32 OwnerID = Batch.OwnerEntityIDs[VMIdx];
-            Origin = World.Attributes->GetPosition(OwnerID);
+            FHktEntityState* State = World.StateStore->Entities.Get(OwnerID);
+            if (State)
+            {
+                Origin = FVector(HktFixedToFloat(State->PosX), HktFixedToFloat(State->PosY), HktFixedToFloat(State->PosZ));
+            }
         }
         else
         {
             FHktRegister& OriginReg = Batch.GetRegister(VMIdx, Inst.B);
             int32 OriginID = OriginReg.GetEntityID();
-            Origin = World.Attributes->GetPosition(OriginID);
+            FHktEntityState* State = World.StateStore->Entities.Get(OriginID);
+            if (State)
+            {
+                Origin = FVector(HktFixedToFloat(State->PosX), HktFixedToFloat(State->PosY), HktFixedToFloat(State->PosZ));
+            }
         }
         
         const FHktProgram* Prog = Batch.Programs[VMIdx];
@@ -452,7 +476,7 @@ namespace HktOps
         
         // 쿼리 실행
         TArray<int32> Results;
-        World.Attributes->QueryRadius(Origin, Radius, Results);
+        World.StateStore->Entities.QueryRadius(Origin, Radius, Results);
         
         // 결과를 리스트에 복사
         FHktListStorage::FList* List = World.Lists->GetList(ListHandle);
@@ -545,7 +569,13 @@ namespace HktOps
         
         // 첫 번째 아이템
         int32 ItemID = List->Items[0];
-        Batch.GetRegister(VMIdx, Inst.B).SetEntity(ItemID, World.Attributes ? World.Attributes->Generations[ItemID] : 0);
+        int32 ItemGen = 0;
+        if (World.StateStore)
+        {
+            FHktEntityState* ItemState = World.StateStore->Entities.Get(ItemID);
+            if (ItemState) ItemGen = ItemState->Generation;
+        }
+        Batch.GetRegister(VMIdx, Inst.B).SetEntity(ItemID, ItemGen);
         Batch.LoopIterators[VMIdx] = 1;
         
         return -1;  // 다음 명령어 (루프 바디)
@@ -613,7 +643,7 @@ namespace HktOps
     // C: 속성 타입 (EHktAttrType)
     inline int32 Op_LoadAttr(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         int32 EntityID;
         if (Inst.B == 0xFF)
@@ -625,21 +655,24 @@ namespace HktOps
             EntityID = Batch.GetRegister(VMIdx, Inst.B).GetEntityID();
         }
         
+        FHktEntityState* State = World.StateStore->Entities.Get(EntityID);
+        if (!State) return -1;
+        
         EHktAttrType AttrType = static_cast<EHktAttrType>(Inst.C);
         
         switch (AttrType)
         {
         case EHktAttrType::Health:
-            Batch.GetRegister(VMIdx, Inst.A).SetFloat(World.Attributes->Health[EntityID]);
+            Batch.GetRegister(VMIdx, Inst.A).SetFloat(State->Attributes.GetFloat(HktAttrKeys::Health, 0.0f));
             break;
         case EHktAttrType::MaxHealth:
-            Batch.GetRegister(VMIdx, Inst.A).SetFloat(World.Attributes->MaxHealth[EntityID]);
+            Batch.GetRegister(VMIdx, Inst.A).SetFloat(State->Attributes.GetFloat(HktAttrKeys::MaxHealth, 0.0f));
             break;
         case EHktAttrType::Mana:
-            Batch.GetRegister(VMIdx, Inst.A).SetFloat(World.Attributes->Mana[EntityID]);
+            Batch.GetRegister(VMIdx, Inst.A).SetFloat(State->Attributes.GetFloat(HktAttrKeys::Mana, 0.0f));
             break;
         case EHktAttrType::Speed:
-            Batch.GetRegister(VMIdx, Inst.A).SetFloat(World.Attributes->Speed[EntityID]);
+            Batch.GetRegister(VMIdx, Inst.A).SetFloat(State->Attributes.GetFloat(HktAttrKeys::Speed, 0.0f));
             break;
         default:
             break;
@@ -654,7 +687,7 @@ namespace HktOps
     // C: 속성 타입 (EHktAttrType)
     inline int32 Op_StoreAttr(FHktVMBatch& Batch, int32 VMIdx, const FHktInstruction& Inst, FHktVMWorld& World)
     {
-        if (!World.Attributes) return -1;
+        if (!World.StateStore) return -1;
         
         int32 EntityID;
         if (Inst.B == 0xFF)
@@ -666,22 +699,25 @@ namespace HktOps
             EntityID = Batch.GetRegister(VMIdx, Inst.B).GetEntityID();
         }
         
+        FHktEntityState* State = World.StateStore->Entities.Get(EntityID);
+        if (!State) return -1;
+        
         EHktAttrType AttrType = static_cast<EHktAttrType>(Inst.C);
         float Value = Batch.GetRegister(VMIdx, Inst.A).AsFloat();
         
         switch (AttrType)
         {
         case EHktAttrType::Health:
-            World.Attributes->Health[EntityID] = Value;
+            State->Attributes.SetFloat(HktAttrKeys::Health, Value);
             break;
         case EHktAttrType::MaxHealth:
-            World.Attributes->MaxHealth[EntityID] = Value;
+            State->Attributes.SetFloat(HktAttrKeys::MaxHealth, Value);
             break;
         case EHktAttrType::Mana:
-            World.Attributes->Mana[EntityID] = Value;
+            State->Attributes.SetFloat(HktAttrKeys::Mana, Value);
             break;
         case EHktAttrType::Speed:
-            World.Attributes->Speed[EntityID] = Value;
+            State->Attributes.SetFloat(HktAttrKeys::Speed, Value);
             break;
         default:
             break;

@@ -6,7 +6,6 @@
 
 struct FHktIntentEvent;
 class FHktVMBuilder;
-struct FHktAttributeStore;
 struct FGameplayTag;
 
 /**
@@ -24,5 +23,5 @@ class HKTSIMULATION_API FFireballFlowDefinition final : public IFlowDefinition
 {
 public:
     virtual FGameplayTag GetEventTag() const override;
-    virtual bool BuildBytecode(FHktVMBuilder& Builder, const FHktIntentEvent& Event, FHktAttributeStore* Attributes) override;
+    virtual bool BuildBytecode(FHktVMBuilder& Builder, const FHktIntentEvent& Event) override;
 };

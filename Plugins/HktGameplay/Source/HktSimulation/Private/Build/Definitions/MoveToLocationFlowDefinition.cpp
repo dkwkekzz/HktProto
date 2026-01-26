@@ -3,7 +3,6 @@
 #include "Build/Definitions/MoveToLocationFlowDefinition.h"
 #include "Build/FlowDefinitionRegistry.h"
 #include "Core/HktVMBuilder.h"
-#include "Core/HktAttributeStore.h"
 #include "HktIntentInterface.h"
 #include "NativeGameplayTags.h"
 
@@ -20,8 +19,7 @@ FGameplayTag FMoveToLocationFlowDefinition::GetEventTag() const
 
 bool FMoveToLocationFlowDefinition::BuildBytecode(
     FHktVMBuilder& Builder, 
-    const FHktIntentEvent& Event, 
-    FHktAttributeStore* Attributes)
+    const FHktIntentEvent& Event)
 {
     // ========================================================================
     // 위치 이동 Flow

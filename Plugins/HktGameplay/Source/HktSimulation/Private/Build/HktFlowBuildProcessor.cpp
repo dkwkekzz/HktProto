@@ -19,8 +19,7 @@ FHktFlowBuildProcessor::~FHktFlowBuildProcessor()
 
 const FHktProgram* FHktFlowBuildProcessor::GetOrBuildProgram(
     const FGameplayTag& FlowTag,
-    const FHktIntentEvent* Event,
-    FHktAttributeStore* Attributes)
+    const FHktIntentEvent* Event)
 {
     // 캐시 확인
     const FHktProgram* Cached = ProgramCache.Get(FlowTag);
@@ -34,7 +33,7 @@ const FHktProgram* FHktFlowBuildProcessor::GetOrBuildProgram(
     }
     
     // 빌드
-    TSharedPtr<FHktProgram> NewProgram = BuildProgramFromDefinition(FlowTag, Event, Attributes);
+    TSharedPtr<FHktProgram> NewProgram = BuildProgramFromDefinition(FlowTag, Event);
     if (!NewProgram.IsValid() || !NewProgram->IsValid())
     {
         UE_LOG(LogFlowBuild, Warning, TEXT("Failed to build program for: %s"), *FlowTag.ToString());
@@ -56,14 +55,13 @@ const FHktProgram* FHktFlowBuildProcessor::GetOrBuildProgram(
 
 const FHktProgram* FHktFlowBuildProcessor::RebuildProgram(
     const FGameplayTag& FlowTag,
-    const FHktIntentEvent* Event,
-    FHktAttributeStore* Attributes)
+    const FHktIntentEvent* Event)
 {
     // 캐시 무효화
     InvalidateCache(FlowTag);
     
     // 다시 빌드
-    return GetOrBuildProgram(FlowTag, Event, Attributes);
+    return GetOrBuildProgram(FlowTag, Event);
 }
 
 const FHktProgram* FHktFlowBuildProcessor::GetCachedProgram(const FGameplayTag& FlowTag) const
@@ -98,8 +96,7 @@ int32 FHktFlowBuildProcessor::GetCachedProgramCount() const
 
 TSharedPtr<FHktProgram> FHktFlowBuildProcessor::BuildProgramFromDefinition(
     const FGameplayTag& FlowTag,
-    const FHktIntentEvent* Event,
-    FHktAttributeStore* Attributes)
+    const FHktIntentEvent* Event)
 {
     // Registry에서 FlowDefinition 찾기
     IFlowDefinition* Definition = FFlowDefinitionRegistry::Find(FlowTag);
@@ -127,7 +124,7 @@ TSharedPtr<FHktProgram> FHktFlowBuildProcessor::BuildProgramFromDefinition(
         Event = &DummyEvent;
     }
     
-    bool bSuccess = Definition->BuildBytecode(Builder, *Event, Attributes);
+    bool bSuccess = Definition->BuildBytecode(Builder, *Event);
     if (!bSuccess)
     {
         UE_LOG(LogFlowBuild, Warning, TEXT("BuildBytecode failed for: %s"), *FlowTag.ToString());

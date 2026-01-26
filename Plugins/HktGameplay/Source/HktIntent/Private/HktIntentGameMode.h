@@ -34,23 +34,9 @@ public:
 	/** Get the absolute server frame */
 	int32 GetServerFrame() const { return AbsoluteFrame; }
 
-	/** IntentEventComponent 등록 (PlayerState에서 호출) */
-	void RegisterIntentEventComponent(UHktIntentEventComponent* Component);
-	
-	/** IntentEventComponent 등록 해제 */
-	void UnregisterIntentEventComponent(UHktIntentEventComponent* Component);
-
-private:
-	/** 프레임 시작 시 모든 IntentEventComponent에 알림 */
-	void NotifyFrameStartToAllComponents(int32 FrameNumber);
-
 private:
 	int32 AbsoluteFrame;
 	float FrameAccumulator;
-
-	/** 등록된 IntentEventComponent 목록 */
-	UPROPERTY()
-	TArray<TObjectPtr<UHktIntentEventComponent>> RegisteredEventComponents;
 
 	static constexpr float FixedFrameTime = 1.0f / 30.0f;
 };

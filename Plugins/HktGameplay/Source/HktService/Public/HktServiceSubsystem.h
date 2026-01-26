@@ -40,8 +40,7 @@ public:
 	// Accessors
 	TScriptInterface<IHktSelectionProvider> GetSelectionProvider() const;
 	TScriptInterface<IHktAssetProvider> GetAssetProvider() const;
-	const TArray<TScriptInterface<IHktIntentEventProvider>>& GetIntentEventProviders() const;
-	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider(int32 Index) const;
+	TScriptInterface<IHktIntentEventProvider> GetIntentEventProvider() const;
 
 private:
 	UPROPERTY()
@@ -51,5 +50,5 @@ private:
 	TScriptInterface<IHktAssetProvider> AssetProvider;
 	
 	UPROPERTY()
-	TArray<TScriptInterface<IHktIntentEventProvider>> IntentEventProviders;
+	TScriptInterface<IHktIntentEventProvider> IntentEventProvider;
 };

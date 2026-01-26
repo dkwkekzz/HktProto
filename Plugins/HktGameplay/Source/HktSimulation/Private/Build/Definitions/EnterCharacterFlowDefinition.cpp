@@ -3,7 +3,6 @@
 #include "Build/Definitions/EnterCharacterFlowDefinition.h"
 #include "Build/FlowDefinitionRegistry.h"
 #include "Core/HktVMBuilder.h"
-#include "Core/HktAttributeStore.h"
 #include "HktIntentInterface.h"
 #include "NativeGameplayTags.h"
 
@@ -24,8 +23,7 @@ FGameplayTag FEnterCharacterFlowDefinition::GetEventTag() const
 
 bool FEnterCharacterFlowDefinition::BuildBytecode(
     FHktVMBuilder& Builder, 
-    const FHktIntentEvent& Event, 
-    FHktAttributeStore* Attributes)
+    const FHktIntentEvent& Event)
 {
     // ========================================================================
     // 캐릭터 입장 Flow

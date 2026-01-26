@@ -1,8 +1,7 @@
 #include "HktIntentGameMode.h"
 #include "HktIntentGameState.h"
 #include "HktIntentPlayerState.h"
-#include "HktIntentEventComponent.h"
-#include "HktServiceSubsystem.h"
+#include "HktIntentEventSubsystem.h"
 #include "GameFramework/PlayerController.h"
 
 AHktIntentGameMode::AHktIntentGameMode()
@@ -28,7 +27,10 @@ void AHktIntentGameMode::Tick(float DeltaSeconds)
 		AbsoluteFrame++;
 		
 		// 프레임 시작 시 모든 IntentEventComponent에 알림
-		NotifyFrameStartToAllComponents(AbsoluteFrame);
+		if (UHktIntentEventSubsystem* IntentEventSubsystem = UHktIntentEventSubsystem::Get(GetWorld()))
+		{
+			IntentEventSubsystem->PushIntentBatch(AbsoluteFrame);
+		}
 	}
 
 	// Update GameState for replication
@@ -78,31 +80,6 @@ AHktIntentGameMode* AHktIntentGameMode::Get(const UObject* WorldContextObject)
 	{
 		return World->GetAuthGameMode<AHktIntentGameMode>();
 	}
-	return nullptr;
-}
-
-// ============================================================================
-// IntentEventComponent Management
-// ============================================================================
-
-void AHktIntentGameMode::RegisterIntentEventComponent(UHktIntentEventComponent* Component)
-{
-	RegisteredEventComponents.Add(Component);
 	
-	UE_LOG(LogTemp, Log, TEXT("[GameMode] RegisterIntentEventComponent: Total=%d"), RegisteredEventComponents.Num());
-}
-
-void AHktIntentGameMode::UnregisterIntentEventComponent(UHktIntentEventComponent* Component)
-{
-	RegisteredEventComponents.Remove(Component);
-
-	UE_LOG(LogTemp, Log, TEXT("[GameMode] UnregisterIntentEventComponent: Total=%d"), RegisteredEventComponents.Num());
-}
-
-void AHktIntentGameMode::NotifyFrameStartToAllComponents(int32 FrameNumber)
-{
-	for (UHktIntentEventComponent* Component : RegisteredEventComponents)
-	{
-		Component->NotifyIntentBatch(FrameNumber);
-	}
+	return nullptr;
 }

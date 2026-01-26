@@ -14,8 +14,8 @@ todos:
   - id: vm-dispatch
     content: HktVMDispatch.h/cpp 작성 - 함수 포인터 테이블, 명령어 구현
     status: completed
-  - id: attr-store
-    content: HktAttributeStore.h 작성 - 영구 속성 SoA 저장소
+  - id: state-store
+    content: HktStateStore.h 작성 - 통합 상태 저장소 (엔티티/플레이어/프로세스)
     status: completed
   - id: vm-builder
     content: HktVMBuilder.h 작성 - 새 바이트코드 빌더
@@ -80,10 +80,10 @@ flowchart TB
         Handlers[함수 포인터 테이블]
     end
     
-    subgraph Attrs["HktAttributeStore (영구)"]
-        Health[Health 배열]
-        Mana[Mana 배열]
-        Position[Position 배열]
+    subgraph Attrs["HktStateStore (영구)"]
+        Entities[엔티티 상태]
+        Players[플레이어 상태]
+        Processes[프로세스 상태]
     end
     
     Program --> Batch
@@ -198,26 +198,17 @@ union FHktRegister
 
 ## 5. 속성 (영구적) - External Attribute Store
 
-### SoA 속성 저장소
+### 통합 상태 저장소
 
 ```cpp
-struct FHktAttributeStore
+struct FHktStateStore
 {
-    static constexpr int32 MaxEntities = 4096;
+    FHktEntityStateStore Entities;   // 엔티티 상태 (4096개)
+    FHktPlayerStateStore Players;    // 플레이어 상태 (64명)
+    FHktProcessStateStore Processes; // VM 프로세스 상태
     
-    // 각 속성을 별도 배열로 (SoA)
-    alignas(64) float Health[MaxEntities];
-    alignas(64) float MaxHealth[MaxEntities];
-    alignas(64) float Mana[MaxEntities];
-    alignas(64) FVector Positions[MaxEntities];
-    alignas(64) FQuat Rotations[MaxEntities];
-    alignas(64) uint32 Flags[MaxEntities];      // 비트마스크 상태
-    
-    // 생성 카운터 (핸들 무효화 감지)
-    alignas(64) int32 Generations[MaxEntities];
-    
-    // Free list
-    TArray<int32> FreeIndices;
+    void Clear();
+    void Tick(float DeltaTime);      // 이동 등 자동 업데이트
 };
 ```
 
@@ -239,7 +230,7 @@ struct FHktAttributeStore
 
 | `HktVMOps.cpp` | 각 명령어 구현 |
 
-| `HktAttributeStore.h` | 영구 속성 저장소 |
+| `HktStateStore.h` | 통합 상태 저장소 |
 
 | `HktVMBuilder.h` | 바이트코드 빌더 (Flow용) |
 
@@ -250,7 +241,7 @@ sequenceDiagram
     participant Sub as Subsystem
     participant Batch as VMBatch
     participant Dispatch as OpDispatch
-    participant Attrs as AttributeStore
+    participant Attrs as StateStore
     
     Sub->>Batch: Tick(DeltaTime)
     loop Each Active VM

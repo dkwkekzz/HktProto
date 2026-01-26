@@ -133,7 +133,7 @@ void UHktIntentBuilderComponent::SubmitIntent()
     NewEvent.Location = TargetLocation;
 
     // 4. Submit to EventComponent
-    EventComponent->NotifyIntent(NewEvent);
+    EventComponent->CommitIntent(NewEvent);
 
     // 5. Reset command for next action (keep subject)
     ResetCommand();
