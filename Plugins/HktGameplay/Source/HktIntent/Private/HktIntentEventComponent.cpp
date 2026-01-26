@@ -76,8 +76,6 @@ void UHktIntentEventComponent::PushIntentBatch(int32 FrameNumber)
 
 void UHktIntentEventComponent::PullIntentEvents(int32 CompletedFrameNumber, TArray<FHktIntentEvent>& OutIntentEvents)
 {
-    // 기준점: 스냅샷이 보장하는 프레임
-    // 1. 유효하지 않은(이미 스냅샷에 포함된) 배치 제거
     int32 RemovedCount = ProcessingIntentEvents.RemoveAll([CompletedFrameNumber](const FHktIntentEvent& IntentEvent)
     {
         return IntentEvent.FrameNumber <= CompletedFrameNumber;
@@ -89,7 +87,12 @@ void UHktIntentEventComponent::PullIntentEvents(int32 CompletedFrameNumber, TArr
             RemovedCount, SnapshotFrame);
     }
 
-    OutIntentEvents.Append(ProcessingIntentEvents);
+    for (const FHktIntentEvent& IntentEvent : ProcessingIntentEvents)
+    {
+        if (IntentEvent.EventID <= LastPulledEventID) break;
+        OutIntentEvents.Add(IntentEvent);
+        LastPulledEventID = IntentEvent.EventID;
+    }
 }
 
 void UHktIntentEventComponent::Multicast_PushIntentBatch_Implementation(const FHktIntentEventBatch& Batch)

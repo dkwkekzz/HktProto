@@ -108,10 +108,7 @@ UHktSimulationSubsystem* UHktSimulationSubsystem::Get(const UObject* WorldContex
 
 void UHktSimulationSubsystem::RegisterSimulationStashComponent(UHktSimulationStashComponent* Component)
 {
-    if (Component && !SimulationStashComponents.Contains(Component))
-    {
-        SimulationStashComponents.Add(Component);
-    }
+    SimulationStashComponents.Add(Component);
 }
 
 void UHktSimulationSubsystem::UnregisterSimulationStashComponent(UHktSimulationStashComponent* Component)
@@ -200,7 +197,7 @@ void UHktSimulationSubsystem::ProcessBuildVMs()
     if (!Service) return;
     
     TScriptInterface<IHktIntentEventProvider> IntentEventProvider = Service->GetIntentEventProvider();
-    if (!IntentEventProvider.GetInterface()) return;
+    if (!IntentEventProvider) return;
         
     TArray<FHktIntentEvent> IntentEvents;
     IntentEventProvider->PullIntentEvents(CompletedFrameNumber, IntentEvents);

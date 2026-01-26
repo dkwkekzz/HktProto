@@ -77,5 +77,7 @@ private:
      */
     UPROPERTY(ReplicatedUsing = OnRep_ProcessingIntentEvents)
     TArray<FHktIntentEvent> ProcessingIntentEvents;
+
+    int32 LastPulledEventID = INDEX_NONE;
 };
 
