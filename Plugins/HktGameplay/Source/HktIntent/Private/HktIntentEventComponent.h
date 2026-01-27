@@ -5,33 +5,13 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Net/Serialization/FastArraySerializer.h"
+#include "HktIntentInterface.h"
 #include "HktIntentEventComponent.generated.h"
 
 class UHktIntentEventComponent;
 
-/**
- * 시뮬레이션 상태 (이제 스냅샷 데이터만 보유)
- * ProcessingBatches는 RPC로 직접 전송하므로 여기서 제거되었습니다.
- */
-USTRUCT()
-struct FHktSimulationState
-{
-    GENERATED_BODY()
-
-    FHktSimulationState() = default;
-
-    /** * 완료된 시뮬레이션 결과 (기준점).
-     * 최초 1회만 동기화되어 클라이언트 시뮬레이션의 시작점이 됩니다.
-     */
-    UPROPERTY()
-    int32 CompletedFrameNumber = 0;
-
-    UPROPERTY()
-    FHktUnitStateArray UnitStates;
-};
-
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class HKTINTENT_API UHktIntentEventComponent : public UActorComponent
+class HKTINTENT_API UHktIntentEventComponent : public UActorComponent, public IHktIntentEventProvider
 {
     GENERATED_BODY()
 
@@ -48,8 +28,10 @@ public:
     /** [Server] 배치 처리 시작 (RPC 호출 트리거) */
     void PushIntentBatch(int32 FrameNumber);
 
+    // IHktIntentEventProvider Interface
     /** [Client & Server] 배치 제공 */
-    void PullIntentEvents(int32 CompletedFrameNumber, TArray<FHktIntentEvent>& OutIntentEvents);
+    virtual void PullIntentEvents(int32 CompletedFrameNumber, TArray<FHktIntentEvent>& OutIntentEvents) override;
+    // End IHktIntentEventProvider Interface
 
 protected:
     UFUNCTION(Server, Reliable, WithValidation)

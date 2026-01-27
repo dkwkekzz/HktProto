@@ -90,6 +90,7 @@ void UHktIntentEventComponent::PullIntentEvents(int32 CompletedFrameNumber, TArr
     for (const FHktIntentEvent& IntentEvent : ProcessingIntentEvents)
     {
         if (IntentEvent.EventID <= LastPulledEventID) break;
+
         OutIntentEvents.Add(IntentEvent);
         LastPulledEventID = IntentEvent.EventID;
     }

@@ -4,122 +4,37 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Net/Serialization/FastArraySerializer.h"
-#include "HktService/Public/HktIntentInterface.h"
-#include "HktService/Public/HktSimulationInterface.h"
-#include "Core/HktVMTypes.h"
+#include "Core/VMStore.h"
 #include "HktSimulationStashComponent.generated.h"
-
-// 전방 선언
-class UHktSimulationStashComponent;
-struct FHktCompletedEvent;
-
-/**
- * 개별 유닛의 상태 데이터 (FFastArraySerializerItem 기반)
- */
-USTRUCT()
-struct FHktUnitStateItem : public FFastArraySerializerItem
-{
-    GENERATED_BODY()
-
-    FHktUnitStateItem() = default;
-
-    explicit FHktUnitStateItem(const FHktUnitHandle& InHandle)
-        : UnitHandle(InHandle)
-    {
-        Attributes.SetNumZeroed(static_cast<int32>(EHktAttribute::Count));
-    }
-
-    UPROPERTY()
-    FHktUnitHandle UnitHandle;
-
-    UPROPERTY()
-    TArray<int32> Attributes;
-
-    void SetAttribute(EHktAttribute Attr, int32 Value)
-    {
-        const int32 Index = static_cast<int32>(Attr);
-        if (Attributes.IsValidIndex(Index)) Attributes[Index] = Value;
-    }
-
-    int32 GetAttribute(EHktAttribute Attr) const
-    {
-        const int32 Index = static_cast<int32>(Attr);
-        return Attributes.IsValidIndex(Index) ? Attributes[Index] : 0;
-    }
-
-    void ModifyAttribute(EHktAttribute Attr, int32 Delta)
-    {
-        const int32 Index = static_cast<int32>(Attr);
-        if (Attributes.IsValidIndex(Index)) Attributes[Index] += Delta;
-    }
-
-    void PostReplicatedAdd(const struct FHktUnitStateArray& InArray) { }
-    void PostReplicatedChange(const struct FHktUnitStateArray& InArray) { }
-    void PreReplicatedRemove(const struct FHktUnitStateArray& InArray) { }
-};
-
-USTRUCT()
-struct FHktUnitStateArray : public FFastArraySerializer
-{
-    GENERATED_BODY()
-
-    UPROPERTY()
-    TArray<FHktUnitStateItem> Items;
-
-    UPROPERTY(NotReplicated)
-    TObjectPtr<UHktSimulationStashComponent> OwnerComponent = nullptr;
-
-    void AddOrUpdateUnit(const FHktUnitHandle& Handle, const TArray<int32>& Attributes);
-    void RemoveUnit(const FHktUnitHandle& Handle);
-    FHktUnitStateItem* FindByHandle(const FHktUnitHandle& Handle);
-    void Clear();
-
-    bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
-    {
-        return FFastArraySerializer::FastArrayDeltaSerialize<FHktUnitStateItem, FHktUnitStateArray>(Items, DeltaParms, *this);
-    }
-};
-
-template<>
-struct TStructOpsTypeTraits<FHktUnitStateArray> : public TStructOpsTypeTraitsBase2<FHktUnitStateArray>
-{
-    enum { WithNetDeltaSerializer = true };
-};
-
-/**
- * 시뮬레이션 상태 (스냅샷 데이터)
- */
-USTRUCT()
-struct FHktSimulationState
-{
-    GENERATED_BODY()
-
-    FHktSimulationState() = default;
-
-    /** 완료된 시뮬레이션 프레임 번호 */
-    UPROPERTY()
-    int32 CompletedFrameNumber = 0;
-
-    /** 유닛 상태 배열 */
-    UPROPERTY()
-    FHktUnitStateArray UnitStates;
-};
-
-/**
- * 시뮬레이션 이벤트 완료 델리게이트
- */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSimulationEventCompleted, int32, EventID, bool, bSuccess);
 
 /**
  * UHktSimulationStashComponent
  * 
  * Actor에 부착되어 시뮬레이션 상태를 관리하고 복제하는 컴포넌트
  * 
+ * FStashBase를 소유하고 네트워크 동기화 기능을 추가함
+ * 
  * 책임:
+ * - FStashBase 데이터 소유 및 관리
  * - 시뮬레이션 상태 스냅샷 저장/복제
  * - 완료된 이벤트 알림 수신
  * - 클라이언트 Late-Join 지원
+ * 
+ * [클라이언트 접속]
+ *     ↓
+ * BeginPlay() → ServerRequestSnapshot()
+ *     ↓
+ * [서버] 스냅샷 생성 → ClientReceiveSnapshot()
+ *     ↓
+ * [클라이언트] 스냅샷 복원 → bIsSimulationInitialized = true
+ *     ↓
+ * [이후 주기적으로]
+ * 서버: MulticastValidateChecksum()
+ *     ↓
+ * 클라이언트: 체크섬 비교 (일치하면 OK)
+ *     ↓
+ * [불일치 시]
+ * ServerReportDesync() → 자동으로 스냅샷 재전송
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class HKTSIMULATION_API UHktSimulationStashComponent : public UActorComponent
@@ -133,42 +48,49 @@ public:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    // ========================================================================
-    // 외부 API
-    // ========================================================================
+    // ========== Stash Access ==========
     
-    /**
-     * 완료된 시뮬레이션 결과 업데이트 (서버에서 호출)
-     */
-    void UpdateCompletedState(const FHktSimulationState& CompletedState);
-    
-    /**
-     * 시뮬레이션 이벤트 완료 알림 (CleanupProcessor에서 호출)
-     */
-    void OnSimulationEventCompleted(const FHktCompletedEvent& CompletedEvent);
-    
-    /**
-     * 현재 시뮬레이션 상태 가져오기
-     */
-    const FHktSimulationState& GetSimulationState() const { return SimulationState; }
-    
-    // ========================================================================
-    // 이벤트
-    // ========================================================================
-    
-    /** 시뮬레이션 이벤트 완료 시 호출되는 델리게이트 */
-    UPROPERTY(BlueprintAssignable, Category = "Simulation")
-    FOnSimulationEventCompleted OnEventCompleted;
+    /** Core에서 사용하는 FStashBase 접근자 */
+    FStashBase* GetStash() { return &StashData; }
+    const FStashBase* GetStash() const { return &StashData; }
 
-protected:
-    UFUNCTION()
-    void OnRep_SimulationState();
+    // ========== Snapshot Sync (초기 동기화) ==========
+    
+    /** 클라이언트 → 서버: 스냅샷 요청 (최초 접속 또는 재동기화 시) */
+    UFUNCTION(Server, Reliable)
+    void ServerRequestSnapshot();
+    
+    /** 서버 → 클라이언트: 스냅샷 전송 */
+    UFUNCTION(Client, Reliable)
+    void ClientReceiveSnapshot(const TArray<uint8>& SnapshotData);
+    
+    /** 초기화 완료 여부 (스냅샷 수신 완료) */
+    bool IsInitialized() const { return bIsSimulationInitialized; }
+    
+    // ========== Checksum Validation (디싱크 감지) ==========
+    
+    /** 현재 상태의 체크섬 계산 */
+    uint32 CalculateChecksum() const;
+    
+    /** 서버: 클라이언트들에게 체크섬 검증 요청 */
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastValidateChecksum(int32 FrameNumber, uint32 ExpectedChecksum);
+    
+    /** 클라이언트: 체크섬 불일치 시 서버에 보고 */
+    UFUNCTION(Server, Reliable)
+    void ServerReportDesync(int32 FrameNumber, uint32 ClientChecksum);
+    
+    /** 디싱크 감지 시 호출되는 델리게이트 */
+    DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnDesyncDetected, int32 /*FrameNumber*/, uint32 /*Expected*/, uint32 /*Actual*/);
+    FOnDesyncDetected OnDesyncDetected;
+    
+private:
+    TArray<uint8> CreateSnapshot() const;
+    bool RestoreFromSnapshot(const TArray<uint8>& SnapshotData);
 
-protected:
-    /** 복제되는 시뮬레이션 상태 */
-    UPROPERTY(ReplicatedUsing = OnRep_SimulationState)
-    FHktSimulationState SimulationState;
-
-    /** 시뮬레이션 초기화 여부 (클라이언트용) */
+    /** 핵심 데이터 저장소 */
+    FStashBase StashData;
+    
+    /** 초기화 완료 여부 (클라이언트: 스냅샷 수신 완료, 서버: 항상 true) */
     bool bIsSimulationInitialized = false;
 };
