@@ -16,6 +16,16 @@
 	"Installed": false,
 	"Modules": [
 		{
+			"Name": "HktCore",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "HktRuntime",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "HktService",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
