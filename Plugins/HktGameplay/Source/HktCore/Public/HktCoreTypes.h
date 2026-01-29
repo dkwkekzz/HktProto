@@ -8,8 +8,40 @@
 #include "HktCoreTypes.generated.h"
 
 /** 엔티티 식별자 (Stash 내 엔티티 인덱스) */
-using FHktEntityId = uint32;
-constexpr FHktEntityId InvalidEntityId = INDEX_NONE;
+USTRUCT(BlueprintType)
+struct FHktEntityId
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Entity")
+    int32 RawValue;
+
+    // 기본 생성자
+    FHktEntityId() : RawValue(0) {}
+
+    // 명시적 생성자
+    FHktEntityId(int32 InValue) : RawValue(InValue) {}
+
+    // 유효성 검사 (0은 보통 Null Entity로 간주)
+    bool IsValid() const { return RawValue != 0; }
+
+    int32 GetValue() const { return RawValue; }
+
+    // 비교 연산자
+    bool operator==(const FHktEntityId& Other) const { return RawValue == Other.RawValue; }
+    bool operator!=(const FHktEntityId& Other) const { return RawValue != Other.RawValue; }
+
+    // 언리얼 엔진 TMap/TSet 지원을 위한 해시 함수
+    friend uint32 GetTypeHash(const FHktEntityId& EntityId)
+    {
+        // uint32 값 자체가 이미 고유한 비트 패턴이므로 RawValue를 그대로 반환하거나
+        // 언리얼의 기본 HashCombine을 사용할 수 있습니다.
+        return GetTypeHash(EntityId.RawValue);
+    }
+};
+
+constexpr FHktEntityId InvalidEntityId = FHktEntityId(INDEX_NONE);
 
 /**
  * Handle to uniquely identify a player.
@@ -24,9 +56,14 @@ struct HKTCORE_API FHktPlayerHandle
 
 	bool IsValid() const { return Value != -1; }
 
-	bool operator==(const FHktUnitHandle& Other) const
+	bool operator==(const FHktPlayerHandle& Other) const
 	{
 		return Value == Other.Value;
+	}
+	
+	bool operator!=(const FHktPlayerHandle& Other) const
+	{
+		return Value != Other.Value;
 	}
 };
 
@@ -61,26 +98,27 @@ struct HKTCORE_API FHktIntentEvent
 
 	FHktIntentEvent()
 		: EventId(0)
-		, SubjectEntityId(InvalidEntityId)
-		, TargetEntityId(InvalidEntityId)
+		, SourceEntity(InvalidEntityId)
+		, TargetEntity(InvalidEntityId)
+		, bIsGlobal(false)
 		, FrameNumber(0)
 	{}
 
 	// Unique ID of the event
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	uint32 EventId;
+	int32 EventId;
 
-	// The Subject of this event (Owner)
+	// The Source/Subject of this event (Relevancy 계산 기준)
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FHktEntityId SubjectEntityId;
+	FHktEntityId SourceEntity;
 
 	// Classification of the event (What happened)
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FGameplayTag EventTag;
 
-	// The Targets involved (e.g. Selection)
+	// The Target entity involved
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FHktEntityId TargetEntityId;
+	FHktEntityId TargetEntity;
 
 	// Location data (if applicable)
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
@@ -89,6 +127,10 @@ struct HKTCORE_API FHktIntentEvent
     // 추가 파라미터
     UPROPERTY(BlueprintReadWrite)
     TArray<uint8> Payload;
+
+    // 글로벌 이벤트 여부 (true면 모든 클라이언트에게 전송)
+    UPROPERTY(BlueprintReadWrite)
+    bool bIsGlobal = false;
 
     // 클라이언트가 모르는 엔티티의 스냅샷 (S2C 전송 시 첨부)
     UPROPERTY()
@@ -115,63 +157,41 @@ struct HKTCORE_API FHktIntentEvent
 };
 
 /**
- * [Intent Event Batch]
- * 프레임 번호와 해당 프레임의 이벤트들을 묶은 배치 구조체
- * GameMode → IntentEventComponent → IHktSimulationProvider로 전달됨
- */
-USTRUCT(BlueprintType)
-struct HKTCORE_API FHktIntentEventBatch
-{
-	GENERATED_BODY()
-
-	FHktIntentEventBatch()
-		: FrameNumber(0)
-	{}
-
-	FHktIntentEventBatch(int64 InFrameNumber)
-		: FrameNumber(InFrameNumber)
-	{}
-
-	// 이 배치의 프레임 번호
-	UPROPERTY(BlueprintReadOnly)
-	int64 FrameNumber;
-
-	// 이 프레임에 포함된 이벤트들
-	UPROPERTY(BlueprintReadOnly)
-	TArray<FHktIntentEvent> Events;
-
-	bool IsEmpty() const { return Events.Num() == 0; }
-};
-
-/**
- * Relevancy 정보 - 클라이언트가 어떤 엔티티를 알고 있는지 추적
+ * FHktFrameBatch - 서버 → 클라이언트 프레임 배치
+ * 
+ * 스냅샷과 이벤트를 분리하여 전송
+ * - Snapshots: Relevancy에 새로 진입한 엔티티들
+ * - Events: 이번 프레임의 Intent들
  */
 USTRUCT()
-struct HKTCORE_API FHktClientRelevancy
+struct HKTCORE_API FHktFrameBatch
 {
     GENERATED_BODY()
 
-    // 이 클라이언트가 알고 있는 엔티티 목록
     UPROPERTY()
-    TSet<FHktEntityId> KnownEntities;
+    int32 FrameNumber = 0;
 
-    bool KnowsEntity(FHktEntityId EntityId) const
-    {
-        return KnownEntities.Contains(EntityId);
-    }
+    // Relevancy에 새로 진입한 엔티티 스냅샷
+    UPROPERTY()
+    TArray<FHktEntitySnapshot> Snapshots;
 
-    void MarkEntityKnown(FHktEntityId EntityId)
-    {
-        KnownEntities.Add(EntityId);
-    }
+    // Relevancy를 벗어난 엔티티 ID (클라가 제거해야 함)
+    UPROPERTY()
+    TArray<FHktEntityId> RemovedEntities;
 
-    void MarkEntityUnknown(FHktEntityId EntityId)
-    {
-        KnownEntities.Remove(EntityId);
-    }
+    // 이번 프레임의 이벤트들 (스냅샷 분리됨)
+    UPROPERTY()
+    TArray<FHktIntentEvent> Events;
 
+    int32 NumEvents() const { return Events.Num(); }
+    int32 NumSnapshots() const { return Snapshots.Num(); }
+    bool IsEmpty() const { return Events.IsEmpty() && Snapshots.IsEmpty() && RemovedEntities.IsEmpty(); }
+    
     void Reset()
     {
-        KnownEntities.Empty();
+        FrameNumber = 0;
+        Snapshots.Empty();
+        RemovedEntities.Empty();
+        Events.Empty();
     }
 };

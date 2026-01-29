@@ -24,8 +24,7 @@ public class HktAsset : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"GameplayTags",
-				"HktService" // For HktServiceTypes and shared types
+				"GameplayTags"
 			}
 		);
 			

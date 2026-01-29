@@ -3,10 +3,19 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
-#include "HktServiceTypes.h"
 #include "HktActionDataAsset.generated.h"
 
 class UTexture2D;
+
+UENUM(BlueprintType)
+enum class EHktActionTargetType : uint8
+{
+	None        UMETA(DisplayName = "None"),
+	Self        UMETA(DisplayName = "Self"),
+	Ally        UMETA(DisplayName = "Ally"),
+	Enemy       UMETA(DisplayName = "Enemy"),
+	Location    UMETA(DisplayName = "Location"),
+};
 
 /**
  * Defines an actionable command available to units.

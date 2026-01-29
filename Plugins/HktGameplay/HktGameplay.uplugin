@@ -26,22 +26,7 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "HktService",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "HktFlow",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
 			"Name": "HktIntent",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "HktSimulation",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		},

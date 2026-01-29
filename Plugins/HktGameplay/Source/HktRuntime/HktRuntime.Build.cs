@@ -25,7 +25,10 @@ public class HktRuntime : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"GameplayTags",
-				"HktCore" // Depends on HktCore for shared utilities
+                "NetCore",
+                "EnhancedInput",
+                "InputCore",
+                "HktCore" // Depends on HktCore for shared utilities
 			}
 		);
 			

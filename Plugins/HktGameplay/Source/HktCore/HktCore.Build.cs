@@ -23,7 +23,6 @@ public class HktCore : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"Engine",
 				"GameplayTags",
 				"StructUtils"
 			}

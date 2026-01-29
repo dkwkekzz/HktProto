@@ -34,9 +34,6 @@ public class HktIntent : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"HktService",
-				"HktAsset",
-				"HktSimulation"  // StashComponent 접근을 위한 의존성
 			}
 		);
 		
