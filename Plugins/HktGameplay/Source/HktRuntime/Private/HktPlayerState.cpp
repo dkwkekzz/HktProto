@@ -1,24 +1,25 @@
 #include "HktPlayerState.h"
+#include "Net/UnrealNetwork.h"
 
 //-----------------------------------------------------------------------------
 // AHktPlayerState
 //-----------------------------------------------------------------------------
 
-AHktIntentPlayerState::AHktIntentPlayerState()
+AHktPlayerState::AHktPlayerState()
 {
 }
 
-void AHktIntentPlayerState::BeginPlay()
+void AHktPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
 }
 
-void AHktIntentPlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void AHktPlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 }
 
-void AHktIntentPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void AHktPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 }

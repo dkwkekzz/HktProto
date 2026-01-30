@@ -3,7 +3,7 @@
 #include "HktVMStore.h"
 #include "HktCoreInterfaces.h"
 
-void FHktVMInterpreter::Initialize(IStashInterface* InStash)
+void FHktVMInterpreter::Initialize(IHktStashInterface* InStash)
 {
     Stash = InStash;
 }

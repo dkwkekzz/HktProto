@@ -242,8 +242,3 @@ inline FFlowBuilder Flow(const FName& TagName)
 {
     return FFlowBuilder::Create(TagName);
 }
-
-inline FFlowBuilder Flow(const FString& TagName)
-{
-    return FFlowBuilder::Create(FName(*TagName));
-}

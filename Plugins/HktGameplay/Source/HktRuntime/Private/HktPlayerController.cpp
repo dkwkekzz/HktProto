@@ -1,10 +1,10 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktPlayerController.h"
-#include "HktIntentBuilderComponent.h"
-#include "HktIntentEventComponent.h"
-#include "HktVisibleStashComponent.h"
-#include "HktVMProcessorComponent.h"
+#include "Components/HktIntentBuilderComponent.h"
+#include "Components/HktVisibleStashComponent.h"
+#include "Components/HktVMProcessorComponent.h"
+#include "HktGameMode.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
 
@@ -42,7 +42,7 @@ void AHktPlayerController::BeginPlay()
         // VMProcessor를 VisibleStash와 연결
         if (VMProcessorComponent && VisibleStashComponent)
         {
-            VMProcessorComponent->InitializeWithVisibleStash(VisibleStashComponent);
+            VMProcessorComponent->Initialize(VisibleStashComponent->GetStashInterface());
         }
 
         UE_LOG(LogTemp, Log, TEXT("HktPlayerController: Client initialized with VisibleStash and VMProcessor"));
@@ -95,11 +95,7 @@ void AHktPlayerController::OnSlotAction(const FInputActionValue& Value, int32 Sl
     // Target이 필요 없으면 바로 제출
     if (!IntentBuilderComponent->IsTargetRequired() && IntentBuilderComponent->IsReadyToSubmit())
     {
-        FHktIntentEvent Event;
-        if (IntentBuilderComponent->SubmitIntent(Event))
-        {
-            IntentEventComponent->CommitIntent(Event);
-        }
+        SendIntent();
     }
 }
 
@@ -113,11 +109,7 @@ void AHktPlayerController::OnTargetAction(const FInputActionValue& Value)
     // Target 설정 완료 시 바로 제출
     if (IntentBuilderComponent->IsReadyToSubmit())
     {
-        FHktIntentEvent Event;
-        if (IntentBuilderComponent->SubmitIntent(Event))
-        {
-            IntentEventComponent->SendIntentToServer(Event);
-        }
+        SendIntent();
     }
 }
 
@@ -128,28 +120,23 @@ void AHktPlayerController::OnZoom(const FInputActionValue& Value)
 
 bool AHktPlayerController::SendIntent()
 {
-    if (!IntentBuilder)
+    if (HasAuthority())
+    {
+        return false;
+    }
+
+    if (!IntentBuilderComponent)
     {
         return false;
     }
 
     FHktIntentEvent Event;
-    if (!IntentBuilder->Build(Event))
+    if (!IntentBuilderComponent->SubmitIntent(Event))
     {
         return false;
     }
 
-    if (!HasAuthority())
-    {
-        Server_ReceiveIntent(Event);
-    }
-    else
-    {
-        if (AHktGameMode* GM = GetWorld()->GetAuthGameMode<AHktGameMode>())
-        {
-            GM->PushIntent(Event);
-        }
-    }
+    Server_ReceiveIntent(Event);
 
     return true;
 }
@@ -201,10 +188,7 @@ void AHktPlayerController::Client_ReceiveBatch_Implementation(const FHktFrameBat
     // 3. 이벤트 실행 (VMProcessor)
     if (VMProcessorComponent && VMProcessorComponent->IsInitialized())
     {
-        // 모든 이벤트를 VMProcessor에 큐잉
-        VMProcessorComponent->QueueIntentEvents(Batch.Events);
-        
-        // 프레임 처리 (Build → Execute → Cleanup)
-        VMProcessorComponent->ProcessFrame(Batch.FrameNumber, GetWorld()->GetDeltaSeconds());
+        // 모든 이벤트를 VMProcessor에 알림
+        VMProcessorComponent->NotifyIntentEvents(Batch.FrameNumber, Batch.Events);
     }
 }

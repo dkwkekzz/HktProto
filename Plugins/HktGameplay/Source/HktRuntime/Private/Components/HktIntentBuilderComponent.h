@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
-#include "HktRuntimeTypes.h"
+#include "HktCoreTypes.h"
 #include "HktRuntimeInterfaces.h"
 #include "HktIntentBuilderComponent.generated.h"
 
@@ -14,7 +14,7 @@
  * Subject, Command, Target을 순차적으로 설정하고 제출합니다.
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class HKTINTENT_API UHktIntentBuilderComponent : public UActorComponent
+class HKTRUNTIME_API UHktIntentBuilderComponent : public UActorComponent
 {
     GENERATED_BODY()
 

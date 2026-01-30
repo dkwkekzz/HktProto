@@ -22,7 +22,7 @@ void UHktIntentBuilderComponent::CreateSubjectAction()
 {
     if (GetSelectableEntityUnderCursor(SubjectEntityId))
     {
-        UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Subject selected: EntityId=%d"), SubjectEntityId);
+        UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Subject selected: EntityId=%d"), SubjectEntityId.RawValue);
         
         // 새 Subject 선택 시 Command/Target 초기화
         ResetCommand();
@@ -52,7 +52,7 @@ void UHktIntentBuilderComponent::CreateTargetAction()
 {
     if (GetSelectableEntityUnderCursor(TargetEntityId))
     {
-        UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Target selected: EntityId=%d"), TargetEntityId);
+        UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Target selected: EntityId=%d"), TargetEntityId.RawValue);
     }
 }
 
@@ -80,7 +80,7 @@ bool UHktIntentBuilderComponent::SubmitIntent(FHktIntentEvent& OutEvent)
     OutEvent.bIsGlobal = false;
 
     UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Intent submitted: Tag=%s, EventId=%d, Subject=%d, Target=%d"), 
-        *EventTag.ToString(), OutEvent.EventId, SubjectEntityId, TargetEntityId);
+        *EventTag.ToString(), OutEvent.EventId, SubjectEntityId.RawValue, TargetEntityId.RawValue);
 
     // 3. Reset command for next action (keep subject)
     ResetCommand();

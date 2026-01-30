@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
+#include "HktCoreTypes.h"
 #include "HktPlayerController.generated.h"
 
 class UInputMappingContext;

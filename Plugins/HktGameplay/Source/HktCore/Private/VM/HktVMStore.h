@@ -4,7 +4,7 @@
 #include "HktCoreTypes.h"
 
 // Forward declaration
-class IStashInterface;
+class IHktStashInterface;
 
 /**
  * FHktVMStore - VM의 로컬 데이터 뷰 (Internal)
@@ -38,11 +38,11 @@ struct FHktVMStore
     void ClearPendingWrites();
     void Reset();
     
-    IStashInterface* Stash = nullptr;
+    IHktStashInterface* Stash = nullptr;
 
 private:
     static uint64 MakeCacheKey(FHktEntityId Entity, uint16 PropertyId)
     {
-        return (static_cast<uint64>(Entity) << 16) | PropertyId;
+        return (static_cast<uint64>(Entity.RawValue) << 16) | PropertyId;
     }
 };

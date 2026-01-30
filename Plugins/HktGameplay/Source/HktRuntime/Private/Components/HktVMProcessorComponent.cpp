@@ -1,108 +1,90 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "HktVMProcessorComponent.h"
-#include "HktRuntimeInterfaces.h"
-#include "HktMasterStashComponent.h"
-#include "HktVisibleStashComponent.h"
-#include "VM/HktVMProcessor.h"
+#include "HktCoreInterfaces.h"
 
 UHktVMProcessorComponent::UHktVMProcessorComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
 }
 
+UHktVMProcessorComponent::~UHktVMProcessorComponent()
+{
+}
+
 void UHktVMProcessorComponent::BeginPlay()
 {
     Super::BeginPlay();
     
-    // VMProcessor 인스턴스 생성
-    VMProcessor = MakeUnique<FHktVMProcessor>();
+    // VMProcessor는 Initialize() 호출 시 생성됨
 }
 
 void UHktVMProcessorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     VMProcessor.Reset();
-    bIsInitialized = false;
-    MasterStash = nullptr;
-    VisibleStash = nullptr;
     
     Super::EndPlay(EndPlayReason);
 }
 
-void UHktVMProcessorComponent::InitializeWithMasterStash(UHktMasterStashComponent* InMasterStash)
+void UHktVMProcessorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-    if (!VMProcessor || !InMasterStash)
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+    if (VMProcessor)
     {
-        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Failed to initialize - invalid VMProcessor or MasterStash"));
-        return;
+        VMProcessor->Tick(SyncFrameNumber++, DeltaTime);
     }
-    
-    MasterStash = InMasterStash;
-    VisibleStash = nullptr;
-    
-    // 컴포넌트가 직접 IStashInterface를 구현하므로 바로 전달
-    VMProcessor->Initialize(InMasterStash);
-    
-    bIsInitialized = true;
-    UE_LOG(LogTemp, Log, TEXT("VMProcessorComponent: Initialized with MasterStash"));
 }
 
-void UHktVMProcessorComponent::InitializeWithVisibleStash(UHktVisibleStashComponent* InVisibleStash)
+void UHktVMProcessorComponent::Initialize(IHktStashInterface* InStash)
 {
-    if (!VMProcessor || !InVisibleStash)
+    if (!InStash)
     {
-        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Failed to initialize - invalid VMProcessor or VisibleStash"));
+        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Failed to initialize - invalid Stash"));
         return;
     }
     
-    MasterStash = nullptr;
-    VisibleStash = InVisibleStash;
-    
-    // 컴포넌트가 직접 IStashInterface를 구현하므로 바로 전달
-    VMProcessor->Initialize(InVisibleStash);
-    
-    bIsInitialized = true;
-    UE_LOG(LogTemp, Log, TEXT("VMProcessorComponent: Initialized with VisibleStash"));
+    // VMProcessor 생성 (Stash와 함께 초기화)
+    VMProcessor = CreateVMProcessor(InStash);
+
+    if (VMProcessor.IsValid())
+    {
+        UE_LOG(LogTemp, Log, TEXT("VMProcessorComponent: Initialized with Stash"));
+    }
 }
 
-void UHktVMProcessorComponent::QueueIntentEvent(const FHktIntentEvent& Event)
+void UHktVMProcessorComponent::NotifyIntentEvent(int32 InFrameNumber, const FHktIntentEvent& Event)
 {
-    if (!VMProcessor || !bIsInitialized)
+    if (!VMProcessor)
     {
-        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Cannot queue event - not initialized"));
+        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Cannot notify event - not initialized"));
         return;
     }
-    
-    VMProcessor->QueueIntentEvent(Event);
+
+    SyncFrameNumber = InFrameNumber;
+
+    VMProcessor->NotifyIntentEvent(Event);
 }
 
-void UHktVMProcessorComponent::QueueIntentEvents(const TArray<FHktIntentEvent>& Events)
+void UHktVMProcessorComponent::NotifyIntentEvents(int32 InFrameNumber, const TArray<FHktIntentEvent>& Events)
 {
-    if (!VMProcessor || !bIsInitialized)
+    if (!VMProcessor)
     {
-        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Cannot queue events - not initialized"));
+        UE_LOG(LogTemp, Warning, TEXT("VMProcessorComponent: Cannot notify events - not initialized"));
         return;
     }
-    
+
+    SyncFrameNumber = InFrameNumber;
+
     for (const FHktIntentEvent& Event : Events)
     {
-        VMProcessor->QueueIntentEvent(Event);
+        VMProcessor->NotifyIntentEvent(Event);
     }
-}
-
-void UHktVMProcessorComponent::ProcessFrame(int32 CurrentFrame, float DeltaSeconds)
-{
-    if (!VMProcessor || !bIsInitialized)
-    {
-        return;
-    }
-    
-    VMProcessor->Tick(CurrentFrame, DeltaSeconds);
 }
 
 void UHktVMProcessorComponent::NotifyCollision(FHktEntityId WatchedEntity, FHktEntityId HitEntity)
 {
-    if (VMProcessor && bIsInitialized)
+    if (VMProcessor)
     {
         VMProcessor->NotifyCollision(WatchedEntity, HitEntity);
     }
@@ -110,7 +92,7 @@ void UHktVMProcessorComponent::NotifyCollision(FHktEntityId WatchedEntity, FHktE
 
 void UHktVMProcessorComponent::NotifyAnimEnd(FHktEntityId Entity)
 {
-    if (VMProcessor && bIsInitialized)
+    if (VMProcessor)
     {
         VMProcessor->NotifyAnimEnd(Entity);
     }
@@ -118,7 +100,7 @@ void UHktVMProcessorComponent::NotifyAnimEnd(FHktEntityId Entity)
 
 void UHktVMProcessorComponent::NotifyMoveEnd(FHktEntityId Entity)
 {
-    if (VMProcessor && bIsInitialized)
+    if (VMProcessor)
     {
         VMProcessor->NotifyMoveEnd(Entity);
     }

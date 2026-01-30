@@ -18,19 +18,26 @@ public:
     int32 RawValue;
 
     // 기본 생성자
-    FHktEntityId() : RawValue(0) {}
+    constexpr FHktEntityId() : RawValue(0) {}
 
     // 명시적 생성자
-    FHktEntityId(int32 InValue) : RawValue(InValue) {}
+    constexpr FHktEntityId(int32 InValue) : RawValue(InValue) {}
 
     // 유효성 검사 (0은 보통 Null Entity로 간주)
     bool IsValid() const { return RawValue != 0; }
 
     int32 GetValue() const { return RawValue; }
 
-    // 비교 연산자
-    bool operator==(const FHktEntityId& Other) const { return RawValue == Other.RawValue; }
-    bool operator!=(const FHktEntityId& Other) const { return RawValue != Other.RawValue; }
+    /** 1. 비교 연산자 (Comparison Operators) */
+    // 동일성 검사
+    FORCEINLINE bool operator==(const FHktEntityId& Other) const { return RawValue == Other.RawValue; }
+    FORCEINLINE bool operator!=(const FHktEntityId& Other) const { return RawValue != Other.RawValue; }
+
+    // 정수형(int32)과 직접 비교 (편의성)
+    FORCEINLINE bool operator==(int32 InRawValue) const { return RawValue == InRawValue; }
+    FORCEINLINE bool operator!=(int32 InRawValue) const { return RawValue != InRawValue; }
+
+	operator int32() const { return RawValue; }
 
     // 언리얼 엔진 TMap/TSet 지원을 위한 해시 함수
     friend uint32 GetTypeHash(const FHktEntityId& EntityId)
@@ -39,33 +46,14 @@ public:
         // 언리얼의 기본 HashCombine을 사용할 수 있습니다.
         return GetTypeHash(EntityId.RawValue);
     }
+
+    friend FArchive& operator<<(FArchive& Ar, FHktEntityId& Value)
+    {
+		return Ar << Value.RawValue;
+    }
 };
 
 constexpr FHktEntityId InvalidEntityId = FHktEntityId(INDEX_NONE);
-
-/**
- * Handle to uniquely identify a player.
- */
-USTRUCT(BlueprintType)
-struct HKTCORE_API FHktPlayerHandle
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	int32 Value = -1;
-
-	bool IsValid() const { return Value != -1; }
-
-	bool operator==(const FHktPlayerHandle& Other) const
-	{
-		return Value == Other.Value;
-	}
-	
-	bool operator!=(const FHktPlayerHandle& Other) const
-	{
-		return Value != Other.Value;
-	}
-};
 
 /**
  * 엔티티 스냅샷 - 클라이언트가 모르는 엔티티 정보를 전달할 때 사용
@@ -101,7 +89,6 @@ struct HKTCORE_API FHktIntentEvent
 		, SourceEntity(InvalidEntityId)
 		, TargetEntity(InvalidEntityId)
 		, bIsGlobal(false)
-		, FrameNumber(0)
 	{}
 
 	// Unique ID of the event
@@ -136,10 +123,6 @@ struct HKTCORE_API FHktIntentEvent
     UPROPERTY()
     TArray<FHktEntitySnapshot> AttachedSnapshots;
 
-    // 서버 틱 (동기화용)
-    UPROPERTY()
-    int64 FrameNumber = 0;
-
     bool operator==(const FHktIntentEvent& Other) const
     {
         return EventId == Other.EventId;
@@ -149,6 +132,11 @@ struct HKTCORE_API FHktIntentEvent
     {
         return !(*this == Other);
     }
+
+    bool operator<(const FHktIntentEvent& Other) const
+    {
+        return EventId < Other.EventId;
+	}
 
 	bool IsValid() const 
 	{ 

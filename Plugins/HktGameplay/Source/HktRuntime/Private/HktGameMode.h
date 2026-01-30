@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "HktIntentTypes.h"
+#include "HktRuntimeTypes.h"
 #include "HktGameMode.generated.h"
 
 class UHktMasterStashComponent;
@@ -38,6 +38,8 @@ protected:
     virtual void Logout(AController* Exiting) override;
 
     void ProcessFrame();
+    void ProcessFrameEventCell();
+    void ProcessFrameClientBatch(AHktPlayerController*& PC, FHktFrameBatch& Batch);
 
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hkt")

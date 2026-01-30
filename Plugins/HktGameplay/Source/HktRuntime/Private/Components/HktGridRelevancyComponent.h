@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "HktRelevancyInterface.h"
+#include "HktRuntimeInterfaces.h"
 #include "HktGridRelevancyComponent.generated.h"
 
 class AHktPlayerController;
@@ -30,7 +30,7 @@ struct FHktPlayerGridCache
  * - 클라이언트별 구독 셀 Set으로 O(1) 체크
  */
 UCLASS(ClassGroup=(HktSimulation), meta=(BlueprintSpawnableComponent))
-class HKTSIMULATION_API UHktGridRelevancyComponent : public UActorComponent, public IHktRelevancyProvider
+class HKTRUNTIME_API UHktGridRelevancyComponent : public UActorComponent, public IHktRelevancyProvider
 {
     GENERATED_BODY()
 

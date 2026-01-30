@@ -6,4 +6,3 @@
 #include "GameplayTagContainer.h"
 #include "InstancedStruct.h"
 #include "HktCoreTypes.h"
-#include "HktRuntimeTypes.generated.h"

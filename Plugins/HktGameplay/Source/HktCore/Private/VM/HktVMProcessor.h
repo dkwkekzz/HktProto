@@ -1,14 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayTagContainer.h"
+#include "Misc/Optional.h"
 #include "HktCoreTypes.h"
+#include "HktCoreInterfaces.h"
 #include "HktVMTypes.h"
+#include "HktVMRuntime.h"
+#include "HktVMStore.h"
 
 // Forward declarations
-struct FHktVMStore;
-class FHktVMRuntimePool;
-class IStashInterface;
 enum class EVMStatus : uint8;
 
 /**
@@ -20,29 +20,26 @@ enum class EVMStatus : uint8;
  * 
  * UObject/UWorld 참조 없음 - HktCore의 순수성 유지
  */
-class HKTCORE_API FHktVMProcessor
+class HKTCORE_API FHktVMProcessor : public IHktVMProcessorInterface
 {
 public:
     FHktVMProcessor() = default;
-    ~FHktVMProcessor();
-    
-    void Initialize(IStashInterface* InStash);
-    void Tick(int32 CurrentFrame, float DeltaSeconds);
-    
-    /** 외부에서 이벤트 주입 */
-    void QueueIntentEvent(const FHktIntentEvent& Event);
-    
-    /** 이벤트 알림 (충돌, 애니메이션 등) */
-    void NotifyCollision(FHktEntityId WatchedEntity, FHktEntityId HitEntity);
-    void NotifyAnimEnd(FHktEntityId Entity);
-    void NotifyMoveEnd(FHktEntityId Entity);
+    virtual ~FHktVMProcessor() override;
+
+    void Initialize(IHktStashInterface* InStash);
+
+    // IHktVMProcessorInterface 구현
+    virtual void Tick(int32 CurrentFrame, float DeltaSeconds) override;
+    virtual void NotifyIntentEvent(const FHktIntentEvent& Event) override;
+    virtual void NotifyCollision(FHktEntityId WatchedEntity, FHktEntityId HitEntity) override;
+    virtual void NotifyAnimEnd(FHktEntityId Entity) override;
+    virtual void NotifyMoveEnd(FHktEntityId Entity) override;
 
 private:
     // Phase 1
     void Build(int32 CurrentFrame);
     TArray<FHktIntentEvent> PullIntentEvents();
     TOptional<FHktVMHandle> TryCreateVM(const FHktIntentEvent& Event, int32 CurrentFrame);
-    bool ValidateStoreFrame(FHktEntityId Entity, int32 CurrentFrame) const;
 
     // Phase 2
     void Execute(float DeltaSeconds);
@@ -57,9 +54,9 @@ private:
     void ApplyAttachedSnapshots(const FHktIntentEvent& Event);
 
 private:
-    IStashInterface* Stash = nullptr;
+    IHktStashInterface* Stash = nullptr;
     
-    TUniquePtr<FHktVMRuntimePool> RuntimePool;
+    FHktVMRuntimePool RuntimePool;
     TArray<FHktVMStore> StorePool;
     
     TArray<FHktIntentEvent> PendingEvents;

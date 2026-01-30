@@ -30,6 +30,37 @@ struct FHktVMHandle
 using RegisterIndex = uint8;
 constexpr int32 MaxRegisters = 16;
 
+/**
+ * Reg - 특수 레지스터 별칭
+ * 
+ * R0~R9는 범용 레지스터
+ * R10~R15는 특수 목적 레지스터
+ */
+namespace Reg
+{
+    // 범용 레지스터
+    constexpr RegisterIndex R0 = 0;
+    constexpr RegisterIndex R1 = 1;
+    constexpr RegisterIndex R2 = 2;
+    constexpr RegisterIndex R3 = 3;
+    constexpr RegisterIndex R4 = 4;
+    constexpr RegisterIndex R5 = 5;
+    constexpr RegisterIndex R6 = 6;
+    constexpr RegisterIndex R7 = 7;
+    constexpr RegisterIndex R8 = 8;
+    constexpr RegisterIndex R9 = 9;
+    constexpr RegisterIndex Temp = 9;       // 임시 레지스터 (R9 별칭)
+    
+    // 특수 목적 레지스터
+    constexpr RegisterIndex Self = 10;      // 현재 엔티티 (IntentEvent.SourceEntity)
+    constexpr RegisterIndex Target = 11;    // 타겟 엔티티 (IntentEvent.TargetEntity)
+    constexpr RegisterIndex Spawned = 12;   // 최근 생성된 엔티티
+    constexpr RegisterIndex Hit = 13;       // 충돌 대상 엔티티
+    constexpr RegisterIndex Iter = 14;      // ForEach 순회용 (NextFound 결과)
+    constexpr RegisterIndex Flag = 15;      // 범용 플래그/상태
+    constexpr RegisterIndex Count = 15;     // 카운트 (Flag와 동일 슬롯)
+}
+
 // ============================================================================
 // VM 상태
 // ============================================================================
@@ -39,8 +70,21 @@ enum class EVMStatus : uint8
     Ready,          // 실행 대기
     Running,        // 실행 중
     Yielded,        // yield 상태 (다음 틱에 재개)
+    WaitingEvent,   // 이벤트 대기 중
     Completed,      // 정상 완료
     Failed,         // 오류로 중단
+};
+
+/**
+ * EWaitEventType - VM이 대기하는 이벤트 타입
+ */
+enum class EWaitEventType : uint8
+{
+    None,
+    Timer,
+    Collision,
+    AnimationEnd,
+    MovementEnd,
 };
 
 // ============================================================================
@@ -51,17 +95,26 @@ enum class EOpCode : uint8
 {
     // Control Flow
     Nop = 0,
-    Halt,           // 프로그램 종료
-    Yield,          // 다음 틱까지 대기
-    Jump,           // 무조건 점프
-    JumpIf,         // 조건부 점프
-    JumpIfNot,      // 조건부 점프 (반전)
+    Halt,                   // 프로그램 종료
+    Yield,                  // 다음 틱까지 대기
+    YieldSeconds,           // N초 대기
+    Jump,                   // 무조건 점프
+    JumpIf,                 // 조건부 점프
+    JumpIfNot,              // 조건부 점프 (반전)
+    
+    // Event Wait
+    WaitCollision,          // 충돌 이벤트 대기
+    WaitAnimEnd,            // 애니메이션 종료 대기
+    WaitMoveEnd,            // 이동 완료 대기
     
     // Data Operations
-    LoadConst,      // 상수 → 레지스터
-    LoadStore,      // Store 속성 → 레지스터
-    SaveStore,      // 레지스터 → Store 속성 (버퍼링됨)
-    Move,           // 레지스터 → 레지스터
+    LoadConst,              // 상수 → 레지스터
+    LoadConstHigh,          // 상수 상위 비트 로드
+    LoadStore,              // Store 속성 → 레지스터
+    LoadStoreEntity,        // 엔티티 속성 → 레지스터
+    SaveStore,              // 레지스터 → Store 속성 (버퍼링됨)
+    SaveStoreEntity,        // 레지스터 → 엔티티 속성 (버퍼링됨)
+    Move,                   // 레지스터 → 레지스터
     
     // Arithmetic
     Add,
@@ -69,6 +122,7 @@ enum class EOpCode : uint8
     Mul,
     Div,
     Mod,
+    AddImm,                 // 즉시값 더하기
     
     // Comparison (결과를 플래그 레지스터에 저장)
     CmpEq,
@@ -78,15 +132,43 @@ enum class EOpCode : uint8
     CmpGt,
     CmpGe,
     
-    // Game Actions (실제 게임 효과 발생)
-    PlayAnim,       // 애니메이션 재생
-    SpawnActor,     // 액터 스폰
-    ApplyDamage,    // 데미지 적용
-    ApplyEffect,    // 이펙트 적용
-    PlaySound,      // 사운드 재생
+    // Entity Management
+    SpawnEntity,            // 엔티티 생성
+    DestroyEntity,          // 엔티티 제거
+    
+    // Position & Movement
+    GetPosition,            // 위치 가져오기
+    SetPosition,            // 위치 설정
+    GetDistance,            // 거리 계산
+    MoveToward,             // 목표로 이동
+    MoveForward,            // 전방 이동
+    StopMovement,           // 이동 중지
+    
+    // Spatial Query
+    FindInRadius,           // 반경 내 검색
+    NextFound,              // 다음 검색 결과
+    
+    // Combat
+    ApplyDamage,            // 데미지 적용
+    ApplyEffect,            // 이펙트 적용
+    RemoveEffect,           // 이펙트 제거
+    
+    // Animation & VFX
+    PlayAnim,               // 애니메이션 재생
+    PlayAnimMontage,        // 몽타주 재생
+    StopAnim,               // 애니메이션 중지
+    PlayVFX,                // VFX 재생 (위치)
+    PlayVFXAttached,        // VFX 재생 (엔티티 부착)
+    
+    // Audio
+    PlaySound,              // 사운드 재생
+    PlaySoundAtLocation,    // 위치에서 사운드 재생
+    
+    // Equipment
+    SpawnEquipment,         // 장비 생성 및 부착
     
     // Utility
-    Log,            // 디버그 로그
+    Log,                    // 디버그 로그
     
     Max
 };

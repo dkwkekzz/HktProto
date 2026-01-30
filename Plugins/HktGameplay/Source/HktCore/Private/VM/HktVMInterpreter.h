@@ -5,7 +5,7 @@
 #include "HktVMRuntime.h"
 
 // Forward declarations
-class IStashInterface;
+class IHktStashInterface;
 
 /**
  * FHktVMInterpreter - 바이트코드 인터프리터 (Pure C++)
@@ -16,7 +16,7 @@ class IStashInterface;
 class HKTCORE_API FHktVMInterpreter
 {
 public:
-    void Initialize(IStashInterface* InStash);
+    void Initialize(IHktStashInterface* InStash);
     
     /** VM을 yield/완료/실패까지 실행 */
     EVMStatus Execute(FHktVMRuntime& Runtime);
@@ -113,5 +113,5 @@ private:
 private:
     static constexpr int32 MaxInstructionsPerTick = 10000;
     
-    IStashInterface* Stash = nullptr;
+    IHktStashInterface* Stash = nullptr;
 };

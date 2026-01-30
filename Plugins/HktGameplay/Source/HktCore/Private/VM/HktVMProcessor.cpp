@@ -1,6 +1,8 @@
 #include "HktVMProcessor.h"
+#include "HktCoreInterfaces.h"
 #include "HktVMInterpreter.h"
 #include "HktVMStore.h"
+#include "HktVMProgram.h"
 
 FHktVMProcessor::~FHktVMProcessor()
 {
@@ -11,15 +13,16 @@ FHktVMProcessor::~FHktVMProcessor()
     }
 }
 
-void FHktVMProcessor::Initialize(IStashInterface* InStash)
+void FHktVMProcessor::Initialize(IHktStashInterface* InStash)
 {
     Stash = InStash;
     
     Interpreter = new FHktVMInterpreter();
     Interpreter->Initialize(Stash);
 
-    RuntimePool = MakeUnique<FHktVMRuntimePool>();
-    
+    // RuntimePool은 인라인 멤버이므로 Reset으로 초기화
+    RuntimePool.Reset();
+
     // Store 풀 초기화
     StorePool.SetNum(256);
     for (FHktVMStore& Store : StorePool)
@@ -35,7 +38,7 @@ void FHktVMProcessor::Tick(int32 CurrentFrame, float DeltaSeconds)
     Cleanup(CurrentFrame);
 }
 
-void FHktVMProcessor::QueueIntentEvent(const FHktIntentEvent& Event)
+void FHktVMProcessor::NotifyIntentEvent(const FHktIntentEvent& Event)
 {
     PendingEvents.Add(Event);
 }
@@ -46,7 +49,7 @@ void FHktVMProcessor::QueueIntentEvent(const FHktIntentEvent& Event)
 
 void FHktVMProcessor::NotifyCollision(EntityId WatchedEntity, EntityId HitEntity)
 {
-    RuntimePool->ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
+    RuntimePool.ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
     {
         if (Runtime.Status == EVMStatus::WaitingEvent &&
             Runtime.EventWait.Type == EWaitEventType::Collision &&
@@ -59,7 +62,7 @@ void FHktVMProcessor::NotifyCollision(EntityId WatchedEntity, EntityId HitEntity
 
 void FHktVMProcessor::NotifyAnimEnd(EntityId Entity)
 {
-    RuntimePool->ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
+    RuntimePool.ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
     {
         if (Runtime.Status == EVMStatus::WaitingEvent &&
             Runtime.EventWait.Type == EWaitEventType::AnimationEnd &&
@@ -72,7 +75,7 @@ void FHktVMProcessor::NotifyAnimEnd(EntityId Entity)
 
 void FHktVMProcessor::NotifyMoveEnd(EntityId Entity)
 {
-    RuntimePool->ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
+    RuntimePool.ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
     {
         if (Runtime.Status == EVMStatus::WaitingEvent &&
             Runtime.EventWait.Type == EWaitEventType::MovementEnd &&
@@ -109,7 +112,7 @@ void FHktVMProcessor::Build(int32 CurrentFrame)
     PendingVMs.Reset();
     
     // Yielded VM 재활성화
-    RuntimePool->ForEachActive([](FHktVMHandle Handle, FHktVMRuntime& Runtime)
+    RuntimePool.ForEachActive([](FHktVMHandle Handle, FHktVMRuntime& Runtime)
     {
         if (Runtime.Status == EVMStatus::Yielded)
         {
@@ -156,7 +159,7 @@ void FHktVMProcessor::ApplyAttachedSnapshots(const FHktIntentEvent& Event)
             Stash->SetProperty(E, static_cast<uint16>(PropId), Snapshot.Properties[PropId]);
         }
         
-        UE_LOG(LogTemp, Log, TEXT("[VMProcessor] Applied attached snapshot for Entity %u"), E);
+        UE_LOG(LogTemp, Log, TEXT("[VMProcessor] Applied attached snapshot for Entity %u"), E.RawValue);
     }
 }
 
@@ -164,7 +167,7 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
 {
     if (!Stash || !Stash->IsValidEntity(Event.SourceEntity))
     {
-        UE_LOG(LogTemp, Warning, TEXT("VM creation failed: SourceEntity %u not valid"), Event.SourceEntity);
+        UE_LOG(LogTemp, Warning, TEXT("VM creation failed: SourceEntity %u not valid"), (int32)Event.SourceEntity);
         return {};
     }
     
@@ -175,14 +178,14 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
         return {};
     }
     
-    FHktVMHandle Handle = RuntimePool->Allocate();
+    FHktVMHandle Handle = RuntimePool.Allocate();
     if (!Handle.IsValid())
     {
         UE_LOG(LogTemp, Warning, TEXT("VM creation failed: Pool exhausted"));
         return {};
     }
     
-    FHktVMRuntime* Runtime = RuntimePool->Get(Handle);
+    FHktVMRuntime* Runtime = RuntimePool.Get(Handle);
     check(Runtime);
     
     // Store 할당
@@ -209,7 +212,7 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
     
     // Payload에서 파라미터 추출 (int32 배열로 해석)
     const int32* PayloadParams = reinterpret_cast<const int32*>(Event.Payload.GetData());
-    const int32 NumParams = FMath::Min(Event.Payload.Num() / sizeof(int32), 4);
+    const int32 NumParams = FMath::Min((int32)(Event.Payload.Num() / sizeof(int32)), 4);
     for (int32 i = 0; i < NumParams; ++i)
     {
         Store.Write(PropertyId::Param0 + i, PayloadParams[i]);
@@ -220,7 +223,7 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
     Store.Write(PropertyId::TargetPosY, FMath::RoundToInt(Event.Location.Y));
     Store.Write(PropertyId::TargetPosZ, FMath::RoundToInt(Event.Location.Z));
     
-    UE_LOG(LogTemp, Log, TEXT("VM created: %s for Entity %u"), *Event.EventTag.ToString(), Event.SourceEntity);
+    UE_LOG(LogTemp, Log, TEXT("VM created: %s for Entity %u"), *Event.EventTag.ToString(), (int32)Event.SourceEntity);
     
     return Handle;
 }
@@ -231,7 +234,7 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
 
 void FHktVMProcessor::Execute(float DeltaSeconds)
 {
-    RuntimePool->ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
+    RuntimePool.ForEachActive([&](FHktVMHandle Handle, FHktVMRuntime& Runtime)
     {
         if (Runtime.Status == EVMStatus::WaitingEvent &&
             Runtime.EventWait.Type == EWaitEventType::Timer)
@@ -255,7 +258,7 @@ void FHktVMProcessor::Execute(float DeltaSeconds)
 
 EVMStatus FHktVMProcessor::ExecuteUntilYield(FHktVMHandle Handle, float DeltaSeconds)
 {
-    FHktVMRuntime* Runtime = RuntimePool->Get(Handle);
+    FHktVMRuntime* Runtime = RuntimePool.Get(Handle);
     if (!Runtime) return EVMStatus::Failed;
     
     if (!Runtime->IsRunnable())
@@ -284,7 +287,7 @@ void FHktVMProcessor::Cleanup(int32 CurrentFrame)
 
 void FHktVMProcessor::ApplyStoreChanges(FHktVMHandle Handle)
 {
-    FHktVMRuntime* Runtime = RuntimePool->Get(Handle);
+    FHktVMRuntime* Runtime = RuntimePool.Get(Handle);
     if (!Runtime || !Runtime->Store || !Stash) return;
     
     for (const FHktVMStore::FPendingWrite& W : Runtime->Store->PendingWrites)
@@ -296,7 +299,7 @@ void FHktVMProcessor::ApplyStoreChanges(FHktVMHandle Handle)
 
 void FHktVMProcessor::FinalizeVM(FHktVMHandle Handle)
 {
-    FHktVMRuntime* Runtime = RuntimePool->Get(Handle);
+    FHktVMRuntime* Runtime = RuntimePool.Get(Handle);
     if (Runtime)
     {
         UE_LOG(LogTemp, Log, TEXT("VM finalized: %s"), 
@@ -307,5 +310,5 @@ void FHktVMProcessor::FinalizeVM(FHktVMHandle Handle)
             Runtime->Store->Reset();
         }
     }
-    RuntimePool->Free(Handle);
+    RuntimePool.Free(Handle);
 }

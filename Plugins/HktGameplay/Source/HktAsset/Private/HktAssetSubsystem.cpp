@@ -1,5 +1,4 @@
 #include "HktAssetSubsystem.h"
-#include "HktServiceSubsystem.h"
 #include "Engine/AssetManager.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -84,8 +83,8 @@ void UHktAssetSubsystem::BuildAssetIndex()
         // 에셋 레지스트리에 'ActionTag' 메타데이터가 있는지 확인
         if (Data.TagsAndValues.Contains(TagName))
         {
-            FString TagString = Data.TagsAndValues[TagName];
-            FGameplayTag ActionTag = FGameplayTag::RequestGameplayTag(FName(*TagString));
+            FAssetTagValueRef ValueRef = Data.TagsAndValues.FindTag(TagName);
+            FGameplayTag ActionTag = FGameplayTag::RequestGameplayTag(ValueRef.AsName());
 
             if (ActionTag.IsValid())
             {

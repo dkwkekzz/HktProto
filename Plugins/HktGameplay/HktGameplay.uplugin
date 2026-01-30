@@ -26,11 +26,6 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "HktIntent",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
 			"Name": "HktPresentation",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

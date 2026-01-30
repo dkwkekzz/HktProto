@@ -41,7 +41,7 @@ void AHktCharacter::SetEntityId(FHktEntityId InEntityId)
 	EntityId = InEntityId;
 	
 	UE_LOG(LogTemp, Log, TEXT("[HktCharacter] %s: EntityId set to %d"), 
-		*GetName(), EntityId);
+		*GetName(), EntityId.RawValue);
 }
 
 void AHktCharacter::SetSelectable(bool bInSelectable)

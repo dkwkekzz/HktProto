@@ -35,7 +35,7 @@ void FHktVMInterpreter::Op_SpawnEntity(FHktVMRuntime& Runtime, int32 StringIndex
 void FHktVMInterpreter::Op_DestroyEntity(FHktVMRuntime& Runtime, RegisterIndex Entity)
 {
     EntityId E = Runtime.GetRegEntity(Entity);
-    UE_LOG(LogTemp, Log, TEXT("[VM] DestroyEntity: %u"), E);
+    UE_LOG(LogTemp, Log, TEXT("[VM] DestroyEntity: %u"), E.RawValue);
     
     // 엔티티 제거는 즉시 적용 (다른 VM이 참조하지 못하게)
     if (Stash)
@@ -102,7 +102,7 @@ void FHktVMInterpreter::Op_MoveToward(FHktVMRuntime& Runtime, RegisterIndex Enti
         Runtime.Store->WriteEntity(E, PropertyId::MoveSpeed, Speed);
         Runtime.Store->WriteEntity(E, PropertyId::IsMoving, 1);
     }
-    UE_LOG(LogTemp, Log, TEXT("[VM] MoveToward: Entity %u, Speed %d"), Runtime.GetRegEntity(Entity), Speed);
+    UE_LOG(LogTemp, Log, TEXT("[VM] MoveToward: Entity %u, Speed %d"), (int32)Runtime.GetRegEntity(Entity), Speed);
 }
 
 void FHktVMInterpreter::Op_MoveForward(FHktVMRuntime& Runtime, RegisterIndex Entity, int32 Speed)
@@ -113,7 +113,7 @@ void FHktVMInterpreter::Op_MoveForward(FHktVMRuntime& Runtime, RegisterIndex Ent
         Runtime.Store->WriteEntity(E, PropertyId::MoveSpeed, Speed);
         Runtime.Store->WriteEntity(E, PropertyId::IsMoving, 1);
     }
-    UE_LOG(LogTemp, Log, TEXT("[VM] MoveForward: Entity %u, Speed %d"), Runtime.GetRegEntity(Entity), Speed);
+    UE_LOG(LogTemp, Log, TEXT("[VM] MoveForward: Entity %u, Speed %d"), (int32)Runtime.GetRegEntity(Entity), Speed);
 }
 
 void FHktVMInterpreter::Op_StopMovement(FHktVMRuntime& Runtime, RegisterIndex Entity)
@@ -123,7 +123,7 @@ void FHktVMInterpreter::Op_StopMovement(FHktVMRuntime& Runtime, RegisterIndex En
         EntityId E = Runtime.GetRegEntity(Entity);
         Runtime.Store->WriteEntity(E, PropertyId::IsMoving, 0);
     }
-    UE_LOG(LogTemp, Log, TEXT("[VM] StopMovement: Entity %u"), Runtime.GetRegEntity(Entity));
+    UE_LOG(LogTemp, Log, TEXT("[VM] StopMovement: Entity %u"), (int32)Runtime.GetRegEntity(Entity));
 }
 
 // Spatial Query
@@ -144,7 +144,7 @@ void FHktVMInterpreter::Op_FindInRadius(FHktVMRuntime& Runtime, RegisterIndex Ce
         int64 RadiusSq = static_cast<int64>(RadiusCm) * RadiusCm;
         
         // 다른 엔티티는 Stash에서 직접 읽기 (커밋된 상태)
-        for (EntityId E = 0; E < 1024; ++E)
+        for (int32 E = 0; E < 1024; ++E)
         {
             if (!Stash->IsValidEntity(E) || E == Center)
                 continue;
@@ -189,7 +189,7 @@ void FHktVMInterpreter::Op_ApplyDamage(FHktVMRuntime& Runtime, RegisterIndex Tar
     EntityId E = Runtime.GetRegEntity(Target);
     int32 Dmg = Runtime.GetReg(Amount);
     
-    UE_LOG(LogTemp, Log, TEXT("[VM] ApplyDamage: Entity %u takes %d damage"), E, Dmg);
+    UE_LOG(LogTemp, Log, TEXT("[VM] ApplyDamage: Entity %u takes %d damage"), (int32)E, Dmg);
     
     if (Runtime.Store && Stash && Stash->IsValidEntity(E))
     {
@@ -207,32 +207,32 @@ void FHktVMInterpreter::Op_ApplyEffect(FHktVMRuntime& Runtime, RegisterIndex Tar
 {
     EntityId E = Runtime.GetRegEntity(Target);
     const FString& Effect = GetString(Runtime, StringIndex);
-    UE_LOG(LogTemp, Log, TEXT("[VM] ApplyEffect: Entity %u, Effect %s"), E, *Effect);
+    UE_LOG(LogTemp, Log, TEXT("[VM] ApplyEffect: Entity %u, Effect %s"), (int32)E, *Effect);
 }
 
 void FHktVMInterpreter::Op_RemoveEffect(FHktVMRuntime& Runtime, RegisterIndex Target, int32 StringIndex)
 {
     EntityId E = Runtime.GetRegEntity(Target);
     const FString& Effect = GetString(Runtime, StringIndex);
-    UE_LOG(LogTemp, Log, TEXT("[VM] RemoveEffect: Entity %u, Effect %s"), E, *Effect);
+    UE_LOG(LogTemp, Log, TEXT("[VM] RemoveEffect: Entity %u, Effect %s"), (int32)E, *Effect);
 }
 
 // Animation & VFX
 void FHktVMInterpreter::Op_PlayAnim(FHktVMRuntime& Runtime, RegisterIndex Entity, int32 StringIndex)
 {
     UE_LOG(LogTemp, Log, TEXT("[VM] PlayAnim: Entity %u, Anim %s"), 
-        Runtime.GetRegEntity(Entity), *GetString(Runtime, StringIndex));
+        (int32)Runtime.GetRegEntity(Entity), *GetString(Runtime, StringIndex));
 }
 
 void FHktVMInterpreter::Op_PlayAnimMontage(FHktVMRuntime& Runtime, RegisterIndex Entity, int32 StringIndex)
 {
     UE_LOG(LogTemp, Log, TEXT("[VM] PlayAnimMontage: Entity %u, Montage %s"), 
-        Runtime.GetRegEntity(Entity), *GetString(Runtime, StringIndex));
+        (int32)Runtime.GetRegEntity(Entity), *GetString(Runtime, StringIndex));
 }
 
 void FHktVMInterpreter::Op_StopAnim(FHktVMRuntime& Runtime, RegisterIndex Entity)
 {
-    UE_LOG(LogTemp, Log, TEXT("[VM] StopAnim: Entity %u"), Runtime.GetRegEntity(Entity));
+    UE_LOG(LogTemp, Log, TEXT("[VM] StopAnim: Entity %u"), (int32)Runtime.GetRegEntity(Entity));
 }
 
 void FHktVMInterpreter::Op_PlayVFX(FHktVMRuntime& Runtime, RegisterIndex PosBase, int32 StringIndex)
@@ -245,7 +245,7 @@ void FHktVMInterpreter::Op_PlayVFX(FHktVMRuntime& Runtime, RegisterIndex PosBase
 void FHktVMInterpreter::Op_PlayVFXAttached(FHktVMRuntime& Runtime, RegisterIndex Entity, int32 StringIndex)
 {
     UE_LOG(LogTemp, Log, TEXT("[VM] PlayVFXAttached: Entity %u, VFX %s"), 
-        Runtime.GetRegEntity(Entity), *GetString(Runtime, StringIndex));
+        (int32)Runtime.GetRegEntity(Entity), *GetString(Runtime, StringIndex));
 }
 
 // Audio
@@ -267,7 +267,7 @@ void FHktVMInterpreter::Op_SpawnEquipment(FHktVMRuntime& Runtime, RegisterIndex 
     EntityId OwnerEntity = Runtime.GetRegEntity(Owner);
     const FString& EquipClass = GetString(Runtime, StringIndex);
     
-    UE_LOG(LogTemp, Log, TEXT("[VM] SpawnEquipment: Owner %u, Slot %d, Class %s"), OwnerEntity, Slot, *EquipClass);
+    UE_LOG(LogTemp, Log, TEXT("[VM] SpawnEquipment: Owner %u, Slot %d, Class %s"), (int32)OwnerEntity, Slot, *EquipClass);
     
     if (Stash && Runtime.Store)
     {

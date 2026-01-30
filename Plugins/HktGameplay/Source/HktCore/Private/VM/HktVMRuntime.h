@@ -56,7 +56,7 @@ struct FEventWaitState
 /**
  * FHktVMRuntime - 단일 VM의 실행 상태
  */
-struct HKTSIMULATION_API FHktVMRuntime
+struct HKTCORE_API FHktVMRuntime
 {
     /** 실행 중인 프로그램 (공유, 불변) */
     const FHktVMProgram* Program = nullptr;
@@ -142,7 +142,7 @@ struct HKTSIMULATION_API FHktVMRuntime
 // FHktVMRuntimePool - SOA 레이아웃의 런타임 풀
 // ============================================================================
 
-class HKTSIMULATION_API FHktVMRuntimePool
+class HKTCORE_API FHktVMRuntimePool
 {
 public:
     FHktVMRuntimePool();
