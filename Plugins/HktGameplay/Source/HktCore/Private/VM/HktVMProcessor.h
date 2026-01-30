@@ -51,9 +51,6 @@ private:
     void FinalizeVM(FHktVMHandle Handle);
 
 private:
-    void ApplyAttachedSnapshots(const FHktIntentEvent& Event);
-
-private:
     IHktStashInterface* Stash = nullptr;
     
     FHktVMRuntimePool RuntimePool;

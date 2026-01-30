@@ -93,14 +93,9 @@ void FHktVMProcessor::NotifyMoveEnd(EntityId Entity)
 void FHktVMProcessor::Build(int32 CurrentFrame)
 {
     TArray<FHktIntentEvent> Events = PullIntentEvents();
-    Events.Sort();
-    
     for (const FHktIntentEvent& Event : Events)
     {
-        // 1. 첨부된 스냅샷 먼저 적용
-        ApplyAttachedSnapshots(Event);
-        
-        // 2. VM 생성
+        // VM 생성
         TOptional<FHktVMHandle> Handle = TryCreateVM(Event, CurrentFrame);
         if (Handle.IsSet())
         {
@@ -133,34 +128,6 @@ TArray<FHktIntentEvent> FHktVMProcessor::PullIntentEvents()
     TArray<FHktIntentEvent> Result = MoveTemp(PendingEvents);
     PendingEvents.Reset();
     return Result;
-}
-
-void FHktVMProcessor::ApplyAttachedSnapshots(const FHktIntentEvent& Event)
-{
-    if (!Stash || Event.AttachedSnapshots.Num() == 0)
-        return;
-    
-    for (const FHktEntitySnapshot& Snapshot : Event.AttachedSnapshots)
-    {
-        if (!Snapshot.IsValid())
-            continue;
-        
-        FHktEntityId E = Snapshot.GetEntityId();
-        
-        // 이미 알고 있는 엔티티면 스킵
-        if (Stash->IsValidEntity(E))
-            continue;
-        
-        // 스냅샷 적용: 엔티티 생성 후 속성 설정
-        // 참고: 여기서는 AllocateEntity 대신 직접 SetProperty
-        // VisibleStash의 경우 알려지지 않은 엔티티도 SetProperty 가능해야 함
-        for (int32 PropId = 0; PropId < Snapshot.Properties.Num(); ++PropId)
-        {
-            Stash->SetProperty(E, static_cast<uint16>(PropId), Snapshot.Properties[PropId]);
-        }
-        
-        UE_LOG(LogTemp, Log, TEXT("[VMProcessor] Applied attached snapshot for Entity %u"), E.RawValue);
-    }
 }
 
 TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Event, int32 CurrentFrame)

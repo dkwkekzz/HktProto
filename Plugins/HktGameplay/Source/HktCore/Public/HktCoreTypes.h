@@ -119,10 +119,6 @@ struct HKTCORE_API FHktIntentEvent
     UPROPERTY(BlueprintReadWrite)
     bool bIsGlobal = false;
 
-    // 클라이언트가 모르는 엔티티의 스냅샷 (S2C 전송 시 첨부)
-    UPROPERTY()
-    TArray<FHktEntitySnapshot> AttachedSnapshots;
-
     bool operator==(const FHktIntentEvent& Other) const
     {
         return EventId == Other.EventId;
