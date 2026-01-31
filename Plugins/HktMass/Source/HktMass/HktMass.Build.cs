@@ -31,7 +31,7 @@ public class HktMass : ModuleRules
 				"NetCore",
 				// Mass Entity 관련 모듈
 				"MassEntity",
-				"MassCommon",
+                "MassCommon",
 				"MassMovement",
 				"MassSpawner",
 				"MassActors",
@@ -39,7 +39,6 @@ public class HktMass : ModuleRules
 				"MassLOD",
 				"MassSimulation",
 				"MassReplication",
-				"StructUtils",
 				"ZoneGraph",
 				"AnimToTexture",
 			}

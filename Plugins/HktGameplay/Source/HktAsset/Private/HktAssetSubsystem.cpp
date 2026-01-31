@@ -2,7 +2,6 @@
 #include "Engine/AssetManager.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "HktActionDataAsset.h" // 인덱싱 대상 클래스 (필요 시 UDataAsset 등으로 변경 가능)
 
 void UHktAssetSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {

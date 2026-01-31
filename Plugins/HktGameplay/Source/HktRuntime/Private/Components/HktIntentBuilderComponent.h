@@ -29,10 +29,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
     void CreateSubjectAction();
     
-    /** 명령 선택 - 슬롯 인덱스로 Command 설정 */
+    /** 명령 선택 - 태그로 Command 설정 */
     UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
-    void CreateCommandAction(int32 SlotIndex);
-    
+    void CreateCommandAction(FGameplayTag InEventTag);
+
     /** 대상 선택 - 커서 아래를 Target으로 설정 */
     UFUNCTION(BlueprintCallable, Category = "Hkt|IntentBuilder")
     void CreateTargetAction();
@@ -62,6 +62,15 @@ public:
     bool IsTargetRequired() const { return bTargetRequired; }
 
     //-------------------------------------------------------------------------
+    // State Access (IHktControlProvider용)
+    //-------------------------------------------------------------------------
+
+    FHktEntityId GetSubjectEntityId() const { return SubjectEntityId; }
+    FHktEntityId GetTargetEntityId() const { return TargetEntityId; }
+    FVector GetTargetLocation() const { return TargetLocation; }
+    FGameplayTag GetEventTag() const { return EventTag; }
+
+    //-------------------------------------------------------------------------
     // Lifecycle
     //-------------------------------------------------------------------------
     
@@ -76,10 +85,6 @@ public:
 private:
     bool GetHitUnderCursor(FHitResult& OutHit) const;
     bool GetSelectableEntityUnderCursor(FHktEntityId& OutEntityId) const;
-
-protected:
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hkt|IntentBuilder")
-    TArray<FGameplayTag> CommandActionTags;
 
 private:
     UPROPERTY(Transient)

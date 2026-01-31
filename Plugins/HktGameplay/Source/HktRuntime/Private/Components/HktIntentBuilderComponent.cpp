@@ -5,6 +5,10 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 
+#if WITH_HKT_INSIGHTS
+#include "HktInsightsDataCollector.h"
+#endif
+
 //=============================================================================
 // UHktIntentBuilderComponent
 //=============================================================================
@@ -29,20 +33,15 @@ void UHktIntentBuilderComponent::CreateSubjectAction()
     }
 }
 
-void UHktIntentBuilderComponent::CreateCommandAction(int32 SlotIndex)
+void UHktIntentBuilderComponent::CreateCommandAction(FGameplayTag InEventTag)
 {
     if (SubjectEntityId == InvalidEntityId)
     {
         return;
     }
 
-    if (CommandActionTags.IsValidIndex(SlotIndex))
-    {
-        return;
-    }
+    EventTag = InEventTag;
 
-    EventTag = CommandActionTags[SlotIndex];
-    
     // Target 초기화
     TargetEntityId = InvalidEntityId;
     TargetLocation = FVector::ZeroVector;
@@ -81,6 +80,16 @@ bool UHktIntentBuilderComponent::SubmitIntent(FHktIntentEvent& OutEvent)
 
     UE_LOG(LogTemp, Log, TEXT("[HktIntentBuilder] Intent submitted: Tag=%s, EventId=%d, Subject=%d, Target=%d"), 
         *EventTag.ToString(), OutEvent.EventId, SubjectEntityId.RawValue, TargetEntityId.RawValue);
+
+    // HktInsights: Intent 생성 기록 (Created 상태)
+    HKT_INSIGHTS_RECORD_INTENT_WITH_STATE(
+        OutEvent.EventId,
+        OutEvent.EventTag,
+        static_cast<int32>(OutEvent.SourceEntity),
+        static_cast<int32>(OutEvent.TargetEntity),
+        OutEvent.Location,
+        EHktInsightsEventState::Created
+    );
 
     // 3. Reset command for next action (keep subject)
     ResetCommand();

@@ -23,8 +23,7 @@ public class HktCore : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"GameplayTags",
-				"StructUtils"
+				"GameplayTags"
 			}
 		);
 			
@@ -39,5 +38,16 @@ public class HktCore : ModuleRules
 			{
 			}
 		);
+
+		// HktInsights - 개발/에디터 빌드에서만 활성화
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateDependencyModuleNames.Add("HktInsights");
+			PrivateDefinitions.Add("WITH_HKT_INSIGHTS=1");
+		}
+		else
+		{
+			PrivateDefinitions.Add("WITH_HKT_INSIGHTS=0");
+		}
 	}
 }

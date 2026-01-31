@@ -25,6 +25,20 @@
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"
 		}
+	],
+	"Plugins": [
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "HktBase",
+			"Enabled": true
+		}
 	]
 }
 

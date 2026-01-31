@@ -5,8 +5,13 @@
 #include "Components/HktVisibleStashComponent.h"
 #include "Components/HktVMProcessorComponent.h"
 #include "HktGameMode.h"
+#include "HktInputAction.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
+
+#if WITH_HKT_INSIGHTS
+#include "HktInsightsDataCollector.h"
+#endif
 
 AHktPlayerController::AHktPlayerController()
 {
@@ -28,24 +33,28 @@ void AHktPlayerController::BeginPlay()
     }
     
     // 클라이언트에서만 VisibleStashComponent 및 VMProcessorComponent 생성
-    if (!HasAuthority())
+    if (GetWorld()->GetNetMode() == ENetMode::NM_Standalone
+        || !HasAuthority())
     {
         IntentBuilderComponent = NewObject<UHktIntentBuilderComponent>(this, TEXT("IntentBuilderComponent"));
         IntentBuilderComponent->RegisterComponent();
-        
+    }
+
+    if (!HasAuthority())
+    {
         VisibleStashComponent = NewObject<UHktVisibleStashComponent>(this, TEXT("VisibleStashComponent"));
         VisibleStashComponent->RegisterComponent();
-        
+
         VMProcessorComponent = NewObject<UHktVMProcessorComponent>(this, TEXT("VMProcessorComponent"));
         VMProcessorComponent->RegisterComponent();
-        
+
         // VMProcessor를 VisibleStash와 연결
         if (VMProcessorComponent && VisibleStashComponent)
         {
             VMProcessorComponent->Initialize(VisibleStashComponent->GetStashInterface());
-        }
 
-        UE_LOG(LogTemp, Log, TEXT("HktPlayerController: Client initialized with VisibleStash and VMProcessor"));
+            UE_LOG(LogTemp, Log, TEXT("HktPlayerController: Client initialized with VisibleStash and VMProcessor"));
+        }
     }
 }
 
@@ -82,6 +91,7 @@ void AHktPlayerController::OnSubjectAction(const FInputActionValue& Value)
     if (IntentBuilderComponent)
     {
         IntentBuilderComponent->CreateSubjectAction();
+        SubjectChangedDelegate.Broadcast(IntentBuilderComponent->GetSubjectEntityId());
     }
 }
 
@@ -90,7 +100,8 @@ void AHktPlayerController::OnSlotAction(const FInputActionValue& Value, int32 Sl
     if (!IntentBuilderComponent)
         return;
 
-    IntentBuilderComponent->CreateCommandAction(SlotIndex);
+    IntentBuilderComponent->CreateCommandAction(SlotActions[SlotIndex]->EventTag);
+    CommandChangedDelegate.Broadcast(IntentBuilderComponent->GetEventTag());
     
     // Target이 필요 없으면 바로 제출
     if (!IntentBuilderComponent->IsTargetRequired() && IntentBuilderComponent->IsReadyToSubmit())
@@ -105,6 +116,7 @@ void AHktPlayerController::OnTargetAction(const FInputActionValue& Value)
         return;
 
     IntentBuilderComponent->CreateTargetAction();
+    TargetChangedDelegate.Broadcast(IntentBuilderComponent->GetTargetEntityId());
     
     // Target 설정 완료 시 바로 제출
     if (IntentBuilderComponent->IsReadyToSubmit())
@@ -115,7 +127,10 @@ void AHktPlayerController::OnTargetAction(const FInputActionValue& Value)
 
 void AHktPlayerController::OnZoom(const FInputActionValue& Value)
 {
-    // Zoom logic...
+    if (Value.GetValueType() == EInputActionValueType::Axis1D)
+    {
+        WheelInputDelegate.Broadcast(Value.Get<float>());
+    }
 }
 
 bool AHktPlayerController::SendIntent()
@@ -136,7 +151,12 @@ bool AHktPlayerController::SendIntent()
         return false;
     }
 
+    // HktInsights: Intent 전송 기록 (Sent 상태)
+    HKT_INSIGHTS_UPDATE_INTENT_STATE(Event.EventId, EHktInsightsEventState::Sent);
+
     Server_ReceiveIntent(Event);
+
+    IntentSubmittedDelegate.Broadcast(Event);
 
     return true;
 }
@@ -150,6 +170,16 @@ bool AHktPlayerController::Server_ReceiveIntent_Validate(const FHktIntentEvent& 
 
 void AHktPlayerController::Server_ReceiveIntent_Implementation(const FHktIntentEvent& Event)
 {
+    // HktInsights: 서버에서 Intent 수신 기록 (Received 상태)
+    HKT_INSIGHTS_RECORD_INTENT_WITH_STATE(
+        Event.EventId,
+        Event.EventTag,
+        static_cast<int32>(Event.SourceEntity),
+        static_cast<int32>(Event.TargetEntity),
+        Event.Location,
+        EHktInsightsEventState::Received
+    );
+
     if (AHktGameMode* GM = GetWorld()->GetAuthGameMode<AHktGameMode>())
     {
         GM->PushIntent(Event);
@@ -173,16 +203,20 @@ void AHktPlayerController::Client_ReceiveBatch_Implementation(const FHktFrameBat
         return;
     }
 
+    IHktStashInterface* Stash = VisibleStashComponent->GetStashInterface();
+
     // 1. 제거된 엔티티
     for (FHktEntityId EntityId : Batch.RemovedEntities)
     {
         VisibleStashComponent->FreeEntity(EntityId);
+        EntityDestroyedDelegate.Broadcast(EntityId);
     }
 
     // 2. 새 스냅샷 적용
     for (const FHktEntitySnapshot& Snapshot : Batch.Snapshots)
     {
         VisibleStashComponent->ApplyEntitySnapshot(Snapshot);
+        EntityCreatedDelegate.Broadcast(Snapshot.EntityId);
     }
 
     // 3. 이벤트 실행 (VMProcessor)
@@ -191,4 +225,44 @@ void AHktPlayerController::Client_ReceiveBatch_Implementation(const FHktFrameBat
         // 모든 이벤트를 VMProcessor에 알림
         VMProcessorComponent->NotifyIntentEvents(Batch.FrameNumber, Batch.Events);
     }
+}
+
+// === IHktModelProvider 구현 ===
+
+IHktStashInterface* AHktPlayerController::GetStashInterface() const
+{
+    if (HasAuthority())
+    {
+        if (AHktGameMode* GM = GetWorld()->GetAuthGameMode<AHktGameMode>())
+        {
+            return GM->GetStashInterface();
+        }
+    }
+
+    return VisibleStashComponent ? VisibleStashComponent->GetStashInterface() : nullptr;
+}
+
+FHktEntityId AHktPlayerController::GetSelectedSubject() const
+{
+    return IntentBuilderComponent ? IntentBuilderComponent->GetSubjectEntityId() : InvalidEntityId;
+}
+
+FHktEntityId AHktPlayerController::GetSelectedTarget() const
+{
+    return IntentBuilderComponent ? IntentBuilderComponent->GetTargetEntityId() : InvalidEntityId;
+}
+
+FVector AHktPlayerController::GetTargetLocation() const
+{
+    return IntentBuilderComponent ? IntentBuilderComponent->GetTargetLocation() : FVector::ZeroVector;
+}
+
+FGameplayTag AHktPlayerController::GetSelectedCommand() const
+{
+    return IntentBuilderComponent ? IntentBuilderComponent->GetEventTag() : FGameplayTag();
+}
+
+bool AHktPlayerController::IsIntentValid() const
+{
+    return IntentBuilderComponent ? IntentBuilderComponent->IsValid() : false;
 }

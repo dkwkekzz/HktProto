@@ -6,10 +6,12 @@
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
 #include "HktCoreTypes.h"
+#include "HktRuntimeInterfaces.h"
 #include "HktPlayerController.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
+class UHktInputAction;
 class UHktIntentBuilderComponent;
 class UHktVisibleStashComponent;
 class UHktVMProcessorComponent;
@@ -78,7 +80,7 @@ struct HKTRUNTIME_API FHktClientRelevancy
  * 입력을 받아 Intent를 조립하고 PlayerState로 제출하는 컨트롤러.
  */
 UCLASS()
-class HKTRUNTIME_API AHktPlayerController : public APlayerController
+class HKTRUNTIME_API AHktPlayerController : public APlayerController, public IHktModelProvider
 {
     GENERATED_BODY()
 
@@ -134,7 +136,7 @@ protected:
     TObjectPtr<UInputAction> ZoomAction;
 
     UPROPERTY(EditDefaultsOnly, Category = "Hkt|Input")
-    TArray<TObjectPtr<UInputAction>> SlotActions;
+    TArray<TObjectPtr<UHktInputAction>> SlotActions;
     
     /** Intent 빌더 컴포넌트 (클라이언트 로컬 입력 조립용) */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hkt|Components")
@@ -149,4 +151,35 @@ protected:
     TObjectPtr<UHktVMProcessorComponent> VMProcessorComponent;
     
     FHktClientRelevancy Relevancy;
+
+    //-------------------------------------------------------------------------
+    // IHktControlProvider 델리게이트
+    //-------------------------------------------------------------------------
+
+    FOnHktSubjectChanged SubjectChangedDelegate;
+    FOnHktTargetChanged TargetChangedDelegate;
+    FOnHktCommandChanged CommandChangedDelegate;
+    FOnHktIntentSubmitted IntentSubmittedDelegate;
+    FOnHktWheelInput WheelInputDelegate;
+    FOnHktEntityCreated EntityCreatedDelegate;
+    FOnHktEntityDestroyed EntityDestroyedDelegate;
+
+public:
+    //-------------------------------------------------------------------------
+    // IHktControlProvider 구현
+    //-------------------------------------------------------------------------
+
+    virtual IHktStashInterface* GetStashInterface() const override;
+    virtual FHktEntityId GetSelectedSubject() const override;
+    virtual FHktEntityId GetSelectedTarget() const override;
+    virtual FVector GetTargetLocation() const override;
+    virtual FGameplayTag GetSelectedCommand() const override;
+    virtual bool IsIntentValid() const override;
+    virtual FOnHktSubjectChanged& OnSubjectChanged() override { return SubjectChangedDelegate; }
+    virtual FOnHktTargetChanged& OnTargetChanged() override { return TargetChangedDelegate; }
+    virtual FOnHktCommandChanged& OnCommandChanged() override { return CommandChangedDelegate; }
+    virtual FOnHktIntentSubmitted& OnIntentSubmitted() override { return IntentSubmittedDelegate; }
+    virtual FOnHktWheelInput& OnWheelInput() override { return WheelInputDelegate; }
+    virtual FOnHktEntityCreated& OnEntityCreated() override { return EntityCreatedDelegate; }
+    virtual FOnHktEntityDestroyed& OnEntityDestroyed() override { return EntityDestroyedDelegate; }
 };

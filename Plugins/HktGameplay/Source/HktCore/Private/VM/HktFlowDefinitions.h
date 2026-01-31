@@ -26,15 +26,15 @@ namespace FlowDefinitions
     {
         using namespace Reg;
         
-        Flow("Ability.Skill.Fireball")
+        Flow(TEXT("Ability.Skill.Fireball"))
             // === 시전 시작 ===
-            .Log("Fireball: 시전 시작")
-            .PlayAnim(Self, "CastFireball")
+            .Log(TEXT("Fireball: 시전 시작"))
+            .PlayAnim(Self, TEXT("CastFireball"))
             .WaitSeconds(1.0f)                          // 1초 대기
             
             // === 파이어볼 생성 및 발사 ===
-            .Log("Fireball: 투사체 생성")
-            .SpawnEntity("/Game/Projectiles/BP_Fireball")  // Spawned = 새 파이어볼
+            .Log(TEXT("Fireball: 투사체 생성"))
+            .SpawnEntity(TEXT("/Game/Projectiles/BP_Fireball"))  // Spawned = 새 파이어볼
             
             // 파이어볼 위치를 시전자 위치로 설정
             .GetPosition(R0, Self)                      // R0,R1,R2 = 시전자 위치
@@ -42,14 +42,14 @@ namespace FlowDefinitions
             
             // 파이어볼을 전방으로 이동 (속도 500 cm/s)
             .MoveForward(Spawned, 500)
-            .PlaySound("/Game/Sounds/FireballLaunch")
+            .PlaySound(TEXT("/Game/Sounds/FireballLaunch"))
             
             // === 충돌 대기 ===
-            .Log("Fireball: 충돌 대기 중...")
+            .Log(TEXT("Fireball: 충돌 대기 중..."))
             .WaitCollision(Spawned)                     // 충돌 시 Hit = 충돌 대상
             
             // === 충돌 처리 ===
-            .Log("Fireball: 충돌! 폭발 처리")
+            .Log(TEXT("Fireball: 충돌! 폭발 처리"))
             
             // 파이어볼 위치 저장 (폭발 위치)
             .GetPosition(R3, Spawned)                   // R3,R4,R5 = 폭발 위치
@@ -59,14 +59,14 @@ namespace FlowDefinitions
             
             // 직격 대상에게 100 피해
             .ApplyDamageConst(Hit, 100)
-            .PlayVFXAttached(Hit, "/Game/VFX/DirectHit")
+            .PlayVFXAttached(Hit, TEXT("/Game/VFX/DirectHit"))
             
             // 폭발 이펙트
-            .PlayVFX(R3, "/Game/VFX/FireballExplosion")
-            .PlaySoundAtLocation(R3, "/Game/Sounds/Explosion")
+            .PlayVFX(R3, TEXT("/Game/VFX/FireballExplosion"))
+            .PlaySoundAtLocation(R3, TEXT("/Game/Sounds/Explosion"))
             
             // === 범위 피해 (반경 300cm) ===
-            .Log("Fireball: 범위 피해 적용")
+            .Log(TEXT("Fireball: 범위 피해 적용"))
             
             // R3에 저장된 위치를 중심으로 범위 검색을 위해
             // 임시 엔티티로 Spawned 레지스터 활용 (이미 제거됨)
@@ -77,10 +77,10 @@ namespace FlowDefinitions
             .ForEachInRadius(Hit, 300)                  // Hit 주변 300cm 내 적들
                 .Move(Target, Iter)                     // Target = 현재 순회 대상
                 .ApplyDamageConst(Target, 50)           // 50 피해
-                .ApplyEffect(Target, "Effect.Burn")     // 화상 적용
+                .ApplyEffect(Target, TEXT("Effect.Burn"))     // 화상 적용
             .EndForEach()
             
-            .Log("Fireball: 완료")
+            .Log(TEXT("Fireball: 완료"))
             .Halt()
             .BuildAndRegister();
     }
@@ -97,8 +97,8 @@ namespace FlowDefinitions
     {
         using namespace Reg;
         
-        Flow("Action.Move.ToLocation")
-            .Log("MoveTo: 이동 시작")
+        Flow(TEXT("Action.Move.ToLocation"))
+            .Log(TEXT("MoveTo: 이동 시작"))
             
             // 목표 위치 로드 (IntentEvent에서 설정됨)
             .LoadStore(R0, PropertyId::TargetPosX)
@@ -106,7 +106,7 @@ namespace FlowDefinitions
             .LoadStore(R2, PropertyId::TargetPosZ)
             
             // 이동 애니메이션 시작
-            .PlayAnim(Self, "Run")
+            .PlayAnim(Self, TEXT("Run"))
             
             // 목표 위치로 이동 시작 (속도 300 cm/s)
             .MoveToward(Self, R0, 300)
@@ -116,9 +116,9 @@ namespace FlowDefinitions
             
             // 정지
             .StopMovement(Self)
-            .PlayAnim(Self, "Idle")
+            .PlayAnim(Self, TEXT("Idle"))
             
-            .Log("MoveTo: 도착")
+            .Log(TEXT("MoveTo: 도착"))
             .Halt()
             .BuildAndRegister();
     }
@@ -136,11 +136,11 @@ namespace FlowDefinitions
     {
         using namespace Reg;
         
-        Flow("Event.Character.Spawn")
-            .Log("CharacterSpawn: 캐릭터 생성")
+        Flow(TEXT("Event.Character.Spawn"))
+            .Log(TEXT("CharacterSpawn: 캐릭터 생성"))
             
             // 캐릭터 스폰
-            .SpawnEntity("/Game/Characters/BP_PlayerCharacter")
+            .SpawnEntity(TEXT("/Game/Characters/BP_PlayerCharacter"))
             .Move(Self, Spawned)                        // Self = 새로 생성된 캐릭터
             
             // 스폰 위치 설정 (IntentEvent에서)
@@ -150,33 +150,33 @@ namespace FlowDefinitions
             .SetPosition(Self, R0)
             
             // 스폰 이펙트
-            .PlayVFXAttached(Self, "/Game/VFX/SpawnEffect")
-            .PlaySound("/Game/Sounds/Spawn")
+            .PlayVFXAttached(Self, TEXT("/Game/VFX/SpawnEffect"))
+            .PlaySound(TEXT("/Game/Sounds/Spawn"))
             
             // 스폰 애니메이션
-            .PlayAnim(Self, "Spawn")
+            .PlayAnim(Self, TEXT("Spawn"))
             
             // 0.5초 대기
             .WaitSeconds(0.5f)
             
             // === 장비 생성 ===
-            .Log("CharacterSpawn: 장비 생성")
+            .Log(TEXT("CharacterSpawn: 장비 생성"))
             
             // 메인 무기 (슬롯 0)
-            .SpawnEquipment(Self, 0, "/Game/Weapons/BP_Sword")
-            .PlayVFXAttached(Spawned, "/Game/VFX/EquipGlow")
+            .SpawnEquipment(Self, 0, TEXT("/Game/Weapons/BP_Sword"))
+            .PlayVFXAttached(Spawned, TEXT("/Game/VFX/EquipGlow"))
             
             // 보조 장비 (슬롯 1)
-            .SpawnEquipment(Self, 1, "/Game/Equipment/BP_Shield")
+            .SpawnEquipment(Self, 1, TEXT("/Game/Equipment/BP_Shield"))
             
             // 인트로 애니메이션
-            .PlayAnimMontage(Self, "IntroMontage")
+            .PlayAnimMontage(Self, TEXT("IntroMontage"))
             .WaitAnimEnd(Self)
             
             // 준비 완료 - Idle 상태로 전환
-            .PlayAnim(Self, "Idle")
+            .PlayAnim(Self, TEXT("Idle"))
             
-            .Log("CharacterSpawn: 준비 완료")
+            .Log(TEXT("CharacterSpawn: 준비 완료"))
             .Halt()
             .BuildAndRegister();
     }
@@ -194,14 +194,14 @@ namespace FlowDefinitions
     {
         using namespace Reg;
         
-        Flow("Ability.Attack.Basic")
-            .Log("BasicAttack: 공격 시작")
+        Flow(TEXT("Ability.Attack.Basic"))
+            .Log(TEXT("BasicAttack: 공격 시작"))
             
             // 타겟 로드 (IntentEvent에서)
             .LoadStore(Target, PropertyId::Param0)      // Param0 = 타겟 EntityId
             
             // 공격 애니메이션
-            .PlayAnimMontage(Self, "Attack")
+            .PlayAnimMontage(Self, TEXT("Attack"))
             .WaitAnimEnd(Self)
             
             // 공격력 로드
@@ -209,10 +209,10 @@ namespace FlowDefinitions
             
             // 피해 적용
             .ApplyDamage(Target, R0)
-            .PlayVFXAttached(Target, "/Game/VFX/HitSpark")
-            .PlaySound("/Game/Sounds/Hit")
+            .PlayVFXAttached(Target, TEXT("/Game/VFX/HitSpark"))
+            .PlaySound(TEXT("/Game/Sounds/Hit"))
             
-            .Log("BasicAttack: 완료")
+            .Log(TEXT("BasicAttack: 완료"))
             .Halt()
             .BuildAndRegister();
     }
@@ -230,12 +230,12 @@ namespace FlowDefinitions
     {
         using namespace Reg;
         
-        Flow("Ability.Skill.Heal")
-            .Log("Heal: 시전 시작")
+        Flow(TEXT("Ability.Skill.Heal"))
+            .Log(TEXT("Heal: 시전 시작"))
             
             // 시전 애니메이션
-            .PlayAnim(Self, "CastHeal")
-            .PlayVFXAttached(Self, "/Game/VFX/HealCast")
+            .PlayAnim(Self, TEXT("CastHeal"))
+            .PlayVFXAttached(Self, TEXT("/Game/VFX/HealCast"))
             .WaitSeconds(0.8f)
             
             // 현재 체력과 최대 체력 로드
@@ -245,27 +245,27 @@ namespace FlowDefinitions
             // 회복량 (Param0에서, 기본 50)
             .LoadStore(R2, PropertyId::Param0)
             .CmpEq(R3, R2, R3)                          // R2 == 0?
-            .JumpIfNot(R3, "HasHealAmount")
+            .JumpIfNot(R3, TEXT("HasHealAmount"))
             .LoadConst(R2, 50)                          // 기본값 50
-            .Label("HasHealAmount")
+            .Label(TEXT("HasHealAmount"))
             
             // 새 체력 = 현재 + 회복량
             .Add(R0, R0, R2)
             
             // 최대 체력 제한
             .CmpGt(R3, R0, R1)                          // 새 체력 > 최대?
-            .JumpIfNot(R3, "NoClamp")
+            .JumpIfNot(R3, TEXT("NoClamp"))
             .Move(R0, R1)                               // 최대로 제한
-            .Label("NoClamp")
+            .Label(TEXT("NoClamp"))
             
             // 체력 저장
             .SaveStore(PropertyId::Health, R0)
             
             // 회복 이펙트
-            .PlayVFXAttached(Self, "/Game/VFX/HealBurst")
-            .PlaySound("/Game/Sounds/Heal")
+            .PlayVFXAttached(Self, TEXT("/Game/VFX/HealBurst"))
+            .PlaySound(TEXT("/Game/Sounds/Heal"))
             
-            .Log("Heal: 완료")
+            .Log(TEXT("Heal: 완료"))
             .Halt()
             .BuildAndRegister();
     }

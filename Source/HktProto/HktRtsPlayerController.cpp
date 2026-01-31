@@ -4,7 +4,6 @@
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
 #include "HktRtsUnit.h"
-#include "HktRtsCameraPawn.h" // 카메라 폰 헤더
 #include "HktUnitCommandComponent.h"
 #include "HktConstructionComponent.h"
 #include "Engine/World.h"
@@ -120,10 +119,6 @@ void AHktRtsPlayerController::HandleRightClick(const FInputActionValue& Value)
 
 void AHktRtsPlayerController::HandleZoom(const FInputActionValue& Value)
 {
-	if (AHktRtsCameraPawn* CameraPawn = Cast<AHktRtsCameraPawn>(GetPawn()))
-	{
-		CameraPawn->HandleZoom(Value);
-	}
 }
 
 void AHktRtsPlayerController::HandleCommand(const FInputActionValue& Value, int32 CommandIndex)

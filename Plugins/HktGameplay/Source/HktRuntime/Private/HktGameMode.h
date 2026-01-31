@@ -9,6 +9,7 @@ class UHktMasterStashComponent;
 class UHktGridRelevancyComponent;
 class UHktVMProcessorComponent;
 class AHktPlayerController;
+class IHktStashInterface;
 
 /**
  * AHktGameMode
@@ -27,6 +28,7 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Hkt")
     int32 GetFrameNumber() const { return FrameNumber; }
+    IHktStashInterface* GetStashInterface() const;
 
     void PushIntent(const FHktIntentEvent& Event);
 

@@ -3,6 +3,10 @@
 #include "HktVMProcessorComponent.h"
 #include "HktCoreInterfaces.h"
 
+#if WITH_HKT_INSIGHTS
+#include "HktInsightsDataCollector.h"
+#endif
+
 UHktVMProcessorComponent::UHktVMProcessorComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;

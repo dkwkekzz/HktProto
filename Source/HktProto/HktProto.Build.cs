@@ -19,11 +19,11 @@ public class HktProto : ModuleRules
             "AIModule", 
             "Niagara",
             "UMG",
-            "GameplayAbilities",
             "GameplayTags",
             "GameplayTasks",
             // HktMass 플러그인 (Mass Entity 시스템)
-            "HktMass"
+            "HktMass",
+            "HktRuntime"
         });
     }
 }

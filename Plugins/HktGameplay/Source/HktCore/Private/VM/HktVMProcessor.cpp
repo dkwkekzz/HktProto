@@ -4,6 +4,10 @@
 #include "HktVMStore.h"
 #include "HktVMProgram.h"
 
+#if WITH_HKT_INSIGHTS
+#include "HktInsightsDataCollector.h"
+#endif
+
 FHktVMProcessor::~FHktVMProcessor()
 {
     if (Interpreter)
@@ -41,6 +45,15 @@ void FHktVMProcessor::Tick(int32 CurrentFrame, float DeltaSeconds)
 void FHktVMProcessor::NotifyIntentEvent(const FHktIntentEvent& Event)
 {
     PendingEvents.Add(Event);
+
+    // HktInsights: Intent 이벤트 기록
+    HKT_INSIGHTS_RECORD_INTENT(
+        Event.EventId,
+        Event.EventTag,
+        static_cast<int32>(Event.SourceEntity),
+        static_cast<int32>(Event.TargetEntity),
+        Event.Location
+    );
 }
 
 // ============================================================================
@@ -173,6 +186,10 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
     Runtime->EventWait.Reset();
     Runtime->SpatialQuery.Reset();
     FMemory::Memzero(Runtime->Registers, sizeof(Runtime->Registers));
+
+#if !UE_BUILD_SHIPPING
+    Runtime->SourceEventId = Event.EventId;  // 디버그용 EventId 저장
+#endif
     
     Runtime->SetRegEntity(Reg::Self, Event.SourceEntity);
     Runtime->SetRegEntity(Reg::Target, Event.TargetEntity);
@@ -192,6 +209,18 @@ TOptional<FHktVMHandle> FHktVMProcessor::TryCreateVM(const FHktIntentEvent& Even
     
     UE_LOG(LogTemp, Log, TEXT("VM created: %s for Entity %u"), *Event.EventTag.ToString(), (int32)Event.SourceEntity);
     
+    // HktInsights: VM 생성 기록
+    HKT_INSIGHTS_RECORD_VM_CREATED(
+        Handle.Index,          // VMId로 Handle.Index 사용
+        Event.EventId,
+        Event.EventTag,
+        Program->CodeSize(),
+        static_cast<int32>(Event.SourceEntity)
+    );
+
+    // HktInsights: Intent 이벤트 상태를 Processing으로 변경
+    HKT_INSIGHTS_UPDATE_INTENT_STATE(Event.EventId, EHktInsightsEventState::Processing);
+
     return Handle;
 }
 
@@ -234,6 +263,42 @@ EVMStatus FHktVMProcessor::ExecuteUntilYield(FHktVMHandle Handle, float DeltaSec
     Runtime->Status = EVMStatus::Running;
     EVMStatus Result = Interpreter->Execute(*Runtime);
     Runtime->Status = Result;
+
+    // HktInsights: VM Tick 기록
+#if WITH_HKT_INSIGHTS
+    {
+        EHktInsightsVMState VMState;
+        switch (Result)
+        {
+        case EVMStatus::Running:
+        case EVMStatus::Ready:
+            VMState = EHktInsightsVMState::Running;
+            break;
+        case EVMStatus::Yielded:
+        case EVMStatus::WaitingEvent:
+            VMState = EHktInsightsVMState::Blocked;
+            break;
+        case EVMStatus::Completed:
+            VMState = EHktInsightsVMState::Completed;
+            break;
+        case EVMStatus::Failed:
+            VMState = EHktInsightsVMState::Error;
+            break;
+        default:
+            VMState = EHktInsightsVMState::Running;
+            break;
+        }
+
+        FString OpName;
+        if (Runtime->Program && Runtime->PC >= 0 && Runtime->PC < Runtime->Program->CodeSize())
+        {
+            const FInstruction& Inst = Runtime->Program->Code[Runtime->PC];
+            OpName = FString::Printf(TEXT("OP_%02X"), static_cast<uint8>(Inst.GetOpCode()));
+        }
+
+        HKT_INSIGHTS_RECORD_VM_TICK(Handle.Index, Runtime->PC, VMState, OpName);
+    }
+#endif
     
     return Result;
 }
@@ -271,6 +336,21 @@ void FHktVMProcessor::FinalizeVM(FHktVMHandle Handle)
     {
         UE_LOG(LogTemp, Log, TEXT("VM finalized: %s"), 
             Runtime->Program ? *Runtime->Program->Tag.ToString() : TEXT("unknown"));
+
+        // HktInsights: VM 완료 기록
+        bool bSuccess = (Runtime->Status == EVMStatus::Completed);
+        HKT_INSIGHTS_RECORD_VM_COMPLETED(Handle.Index, bSuccess);
+
+        // HktInsights: Intent 이벤트 상태를 Completed/Failed로 업데이트
+#if !UE_BUILD_SHIPPING
+        if (Runtime->SourceEventId != 0)
+        {
+            EHktInsightsEventState FinalState = bSuccess 
+                ? EHktInsightsEventState::Completed 
+                : EHktInsightsEventState::Failed;
+            HKT_INSIGHTS_UPDATE_INTENT_STATE(Runtime->SourceEventId, FinalState);
+        }
+#endif
         
         if (Runtime->Store)
         {

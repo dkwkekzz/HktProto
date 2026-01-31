@@ -28,7 +28,8 @@ public class HktRuntime : ModuleRules
                 "NetCore",
                 "EnhancedInput",
                 "InputCore",
-                "HktCore" // Depends on HktCore for shared utilities
+                "HktCore",
+				"HktAsset"
 			}
 		);
 			
@@ -43,5 +44,15 @@ public class HktRuntime : ModuleRules
 			{
 			}
 		);
-	}
+
+        if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+        {
+            PrivateDependencyModuleNames.Add("HktInsights");
+            PrivateDefinitions.Add("WITH_HKT_INSIGHTS=1");
+        }
+        else
+        {
+            PrivateDefinitions.Add("WITH_HKT_INSIGHTS=0");
+        }
+    }
 }

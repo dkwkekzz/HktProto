@@ -3,6 +3,4 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayTagContainer.h"
-#include "InstancedStruct.h"
 #include "HktCoreTypes.h"

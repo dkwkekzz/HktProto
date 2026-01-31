@@ -1,23 +1,24 @@
 // Copyright Hkt Studios, Inc. All Rights Reserved.
 
 #include "IHktPresentationModule.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "FHktPresentationModule"
 
 class FHktPresentationModule : public IHktPresentationModule
 {
+public:
 	virtual void StartupModule() override
 	{
-		// HktPresentation module startup
+		UE_LOG(LogTemp, Log, TEXT("HktPresentation Module Started"));
 	}
 
 	virtual void ShutdownModule() override
 	{
-		// HktPresentation module shutdown
+		UE_LOG(LogTemp, Log, TEXT("HktPresentation Module Shutdown"));
 	}
 };
 
 IMPLEMENT_MODULE(FHktPresentationModule, HktPresentation)
 
 #undef LOCTEXT_NAMESPACE
-

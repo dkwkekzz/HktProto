@@ -9,15 +9,8 @@
 /**
  * HktPresentation Module Interface
  * 
- * This module handles pure rendering/visualization of simulation results.
- * 
- * Key principles:
- * - ZERO LOGIC: No game logic, no state changes
- * - ZERO REFERENCES: Does not reference HktIntent or HktSimulation modules
- * - DATA-DRIVEN: Only renders data from MassEntity fragments
- * 
- * Data is injected by HktSimulation through shared MassEntity fragments,
- * creating a clean separation without direct module dependencies.
+ * 순수 View 레이어 - 게임 로직 없음
+ * HktRuntime의 IHktModelProvider를 통해 데이터를 읽고 시각화만 수행
  */
 class HKTPRESENTATION_API IHktPresentationModule : public IModuleInterface
 {
@@ -32,4 +25,3 @@ public:
 		return FModuleManager::Get().IsModuleLoaded("HktPresentation");
 	}
 };
-

@@ -53,7 +53,7 @@ public:
         OutRelevantClients = ValidClients;
     }
 
-    virtual void UpdateRelevancy(float DeltaTime) override;
+    virtual void UpdateRelevancy() override;
 
     // === 클라이언트 단위 조회 (병렬 처리용) ===
     

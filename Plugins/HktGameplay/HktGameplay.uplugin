@@ -34,13 +34,19 @@
 			"Name": "HktAsset",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "HktInsights",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "HktInsightsEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
-		{
-			"Name": "MassEntity",
-			"Enabled": true
-		},
 		{
 			"Name": "MassGameplay",
 			"Enabled": true
@@ -54,7 +60,11 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
+			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
 			"Enabled": true
 		}
 	]

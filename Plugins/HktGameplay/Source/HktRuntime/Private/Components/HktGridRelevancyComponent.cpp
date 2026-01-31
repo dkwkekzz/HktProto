@@ -50,7 +50,7 @@ void UHktGridRelevancyComponent::UnregisterClient(AHktPlayerController* Client)
 
 // === 업데이트 ===
 
-void UHktGridRelevancyComponent::UpdateRelevancy(float DeltaTime)
+void UHktGridRelevancyComponent::UpdateRelevancy()
 {
     // 유효한 클라이언트 갱신
     ValidClients.Reset();

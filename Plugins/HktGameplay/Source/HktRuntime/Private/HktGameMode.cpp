@@ -5,6 +5,10 @@
 #include "Components/HktVMProcessorComponent.h"
 #include "Async/ParallelFor.h"
 
+#if WITH_HKT_INSIGHTS
+#include "HktInsightsDataCollector.h"
+#endif
+
 AHktGameMode::AHktGameMode()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -31,11 +35,6 @@ void AHktGameMode::BeginPlay()
 void AHktGameMode::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
-
-    if (GridRelevancy)
-    {
-        GridRelevancy->UpdateRelevancy(DeltaSeconds);
-    }
 
     ProcessFrame();
     FrameNumber++;
@@ -67,10 +66,23 @@ void AHktGameMode::Logout(AController* Exiting)
     Super::Logout(Exiting);
 }
 
+IHktStashInterface* AHktGameMode::GetStashInterface() const
+{
+    if (MasterStash)
+    {
+        MasterStash->GetStashInterface();
+    }
+
+    return nullptr;
+}
+
 void AHktGameMode::PushIntent(const FHktIntentEvent& Event)
 {
     FScopeLock Lock(&IntentLock);
     CollectedIntents.Add(Event);
+
+    // HktInsights: CollectedIntents에 추가됨 (Queued 상태)
+    HKT_INSIGHTS_UPDATE_INTENT_STATE(Event.EventId, EHktInsightsEventState::Queued);
 }
 
 void AHktGameMode::ProcessFrame()
@@ -78,6 +90,11 @@ void AHktGameMode::ProcessFrame()
     if (!GridRelevancy || !MasterStash)
     {
         return;
+    }
+
+    if (GridRelevancy)
+    {
+        GridRelevancy->UpdateRelevancy();
     }
 
     const TArray<AHktPlayerController*>& AllClients = GridRelevancy->GetAllClients();
@@ -92,6 +109,14 @@ void AHktGameMode::ProcessFrame()
         FrameIntents = MoveTemp(CollectedIntents);
         CollectedIntents.Reset();
     }
+
+    // HktInsights: 배치 처리 시작 (Batched 상태)
+#if WITH_HKT_INSIGHTS
+    for (const FHktIntentEvent& Event : FrameIntents)
+    {
+        HKT_INSIGHTS_UPDATE_INTENT_STATE(Event.EventId, EHktInsightsEventState::Batched);
+    }
+#endif
 
     // 2. 이벤트별 셀 정보 미리 계산 (메인 스레드)
     ProcessFrameEventCell();
@@ -124,6 +149,14 @@ void AHktGameMode::ProcessFrame()
     // 5. 서버 VMProcessor 실행
     if (VMProcessor && VMProcessor->IsInitialized())
     {
+        // HktInsights: VMProcessor에 전달 (Dispatched 상태)
+#if WITH_HKT_INSIGHTS
+        for (const FHktIntentEvent& Event : FrameIntents)
+        {
+            HKT_INSIGHTS_UPDATE_INTENT_STATE(Event.EventId, EHktInsightsEventState::Dispatched);
+        }
+#endif
+
         // 모든 이벤트를 VMProcessor에 큐잉
         VMProcessor->NotifyIntentEvents(FrameNumber, FrameIntents);
     }

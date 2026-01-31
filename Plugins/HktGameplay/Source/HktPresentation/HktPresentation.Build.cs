@@ -7,37 +7,41 @@ public class HktPresentation : ModuleRules
 	public HktPresentation(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+
 		PublicIncludePaths.AddRange(
 			new string[] {
+				System.IO.Path.Combine(ModuleDirectory, "..", "HktCore", "Public"),
+				System.IO.Path.Combine(ModuleDirectory, "..", "HktRuntime", "Public"),
 			}
 		);
-				
+
 		PrivateIncludePaths.AddRange(
 			new string[] {
 			}
 		);
 
-		// IMPORTANT: HktPresentation has NO dependency on HktIntent or HktSimulation
-		// It only reads data from MassEntity fragments (injected by HktSimulation)
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"MassEntity",
-				"MassCommon",
-				"MassRepresentation",
-				"MassActors",
+				"InputCore",
 				"GameplayTags",
-				"Niagara"  // For VFX
+				"UMG",
+				"Slate",
+				"SlateCore",
+				"Niagara",
+				"HktCore",
+				"HktRuntime",
+				"HktAsset"
 			}
 		);
 			
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"DeveloperSettings"
 			}
 		);
 		
@@ -48,4 +52,3 @@ public class HktPresentation : ModuleRules
 		);
 	}
 }
-
